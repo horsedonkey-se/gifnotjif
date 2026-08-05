@@ -17,6 +17,7 @@ import { showHud } from './hud';
 import { startRecording } from './recorder';
 import { encodeGif } from './encoder';
 import { getPlatform } from './platform';
+import { startUpdates, type UpdateState, type Updater } from './updater';
 import type { Settings } from './defaults';
 import type { Hud, Recording } from './types';
 
@@ -33,6 +34,7 @@ let tray: Tray | null = null;
 let config: Settings = settings.DEFAULTS;
 let state: State = 'idle';
 let current: Current | null = null;
+let updater: Updater | null = null;
 
 // Only one instance may hold the global hotkey.
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -82,13 +84,11 @@ async function pruneOldRecordings(): Promise<void> {
 
 let toast: Notification | null = null;
 
-function notify(title: string, body: string, openOnClick?: string): void {
+function notify(title: string, body: string, onClick?: () => void): void {
   if (!Notification.isSupported()) return;
 
   const next = new Notification({ title, body });
-  if (openOnClick) {
-    next.on('click', () => void shell.openPath(openOnClick));
-  }
+  if (onClick) next.on('click', onClick);
   next.on('close', () => {
     if (toast === next) toast = null;
   });
@@ -115,6 +115,61 @@ function setTrayState(next: State): void {
   };
   tray.setToolTip(tooltips[next]);
   buildTrayMenu(tray);
+}
+
+/**
+ * One item, reading whatever the updater is currently doing. It is the only
+ * place an update can be installed by hand, and it goes quiet while a recording
+ * is in flight: restarting mid-take would throw the take away.
+ */
+function updateMenuItem(): Electron.MenuItemConstructorOptions[] {
+  if (!updater) return [];
+  const status = updater.state();
+
+  switch (status.kind) {
+    case 'checking':
+      return [{ label: 'Checking for updates...', enabled: false }];
+    case 'downloading':
+      return [{ label: `Downloading update... ${status.percent}%`, enabled: false }];
+    case 'ready':
+      return [
+        {
+          label: `Restart to update to ${status.version}`,
+          enabled: state === 'idle',
+          click: () => updater?.install(),
+        },
+      ];
+    case 'manual':
+      return [
+        {
+          label: `Get ${status.version}...`,
+          click: () => void shell.openExternal(status.url),
+        },
+      ];
+    default:
+      return [{ label: 'Check for updates', click: () => updater?.check() }];
+  }
+}
+
+/**
+ * Says an update arrived, once. The tray item is the durable copy of this, and
+ * anyone who ignores both still gets the update when they next quit.
+ */
+function announceUpdate(status: UpdateState): void {
+  if (status.kind === 'ready') {
+    notify(
+      'Update ready',
+      `Version ${status.version} installs when you quit. ` +
+        'Use the tray menu to restart now.',
+    );
+  } else if (status.kind === 'manual') {
+    // macOS cannot install it for them, so the toast has to lead somewhere.
+    notify(
+      'Update available',
+      `Version ${status.version} is out. Click to download.`,
+      () => void shell.openExternal(status.url),
+    );
+  }
 }
 
 function buildTrayMenu(target: Tray): void {
@@ -145,6 +200,7 @@ function buildTrayMenu(target: Tray): void {
         },
       },
       { type: 'separator' },
+      ...updateMenuItem(),
       { label: 'Quit', role: 'quit' },
     ]),
   );
@@ -256,11 +312,13 @@ async function stopRecording(): Promise<void> {
       notify(
         'Copied to clipboard',
         `${await sizeOf(gifPath)} - ready to paste. Click to open.`,
-        gifPath,
+        () => void shell.openPath(gifPath),
       );
     } else {
       // The recording is not wasted: the file on disk is the deliverable.
-      notify('Saved to disk', `${support.reason} ${gifPath} Click to open.`, gifPath);
+      notify('Saved to disk', `${support.reason} ${gifPath} Click to open.`, () =>
+        void shell.openPath(gifPath),
+      );
     }
 
     // The GIF stays; only the intermediate video goes.
@@ -306,6 +364,15 @@ void app.whenReady().then(async () => {
       `Another application already owns ${config.hotkey}. ` +
         'Change "hotkey" in settings.json and restart.',
     );
+  }
+
+  if (config.autoUpdate) {
+    // Returns null unpackaged, which also keeps the tray item out of dev runs
+    // where nothing behind it would work.
+    updater = startUpdates((status) => {
+      announceUpdate(status);
+      if (tray) buildTrayMenu(tray);
+    });
   }
 
   await pruneOldRecordings();

@@ -10,6 +10,7 @@ export interface Settings {
   drawMouse: boolean;
   keepForDays: number;
   clipboardMimeType: string;
+  autoUpdate: boolean;
 }
 
 export const DEFAULTS: Settings = {
@@ -32,4 +33,9 @@ export const DEFAULTS: Settings = {
   // paste-as-file type browsers, chat apps and file managers read, and it is
   // what makes the GIF animate rather than arrive as a still.
   clipboardMimeType: 'text/uri-list',
+  // Checks GitHub for a newer release every few hours. Windows and Linux
+  // download and install it; macOS only says one exists, because these builds
+  // are unsigned and macOS will not install what it cannot verify. Turning it
+  // off means finding the Releases page by hand for every fix.
+  autoUpdate: true,
 };

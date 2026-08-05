@@ -72,3 +72,8 @@ publish:
     owner: horsedonkey-se
     repo: gifnotjif
     releaseType: draft
+    # Without this a prerelease version writes beta.yml instead of latest.yml,
+    # and an installed beta then asks each release for a file it does not carry.
+    # Pinning the name keeps one metadata file across both, and the client
+    # decides whether it wants prereleases (src/main/updater.ts).
+    channel: latest

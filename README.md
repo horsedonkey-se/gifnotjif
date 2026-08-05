@@ -19,6 +19,15 @@ Windows: More info, then Run anyway. macOS: right-click the app, Open, Open.
 Linux needs `chmod +x` on the AppImage and `xclip` installed for the clipboard
 step to work.
 
+## Updating it
+
+Windows and Linux update themselves: a new release downloads in the background
+and installs when you quit, or sooner from the tray menu.
+
+macOS only tells you, and links to Releases. Unsigned builds cannot self-install.
+
+Turn it off with `"autoUpdate": false` in `settings.json`.
+
 ## Running from source
 
 ```
