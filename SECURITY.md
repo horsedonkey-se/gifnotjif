@@ -4,7 +4,7 @@
 
 Report a vulnerability privately through GitHub's
 [security advisory form](../../security/advisories/new), or by email to
-hargaaya10@gmail.com. Please do not open a public issue for one.
+hello@horsedonkey.se. Please do not open a public issue for one.
 
 This is a spare-time project, so expect a first reply within a week rather than
 a day.
