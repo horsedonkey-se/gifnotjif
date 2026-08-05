@@ -29,6 +29,11 @@ export function isSupported(): Support {
   return { ok: false, reason: NOT_IMPLEMENTED };
 }
 
+/** X11 has no display affinity, so x11grab records the bar whatever we ask. */
+export function canHideFromCapture(): boolean {
+  return false;
+}
+
 export function captureArgs({
   x,
   y,

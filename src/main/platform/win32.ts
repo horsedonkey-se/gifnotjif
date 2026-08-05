@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 
@@ -11,6 +12,21 @@ const COPY_SCRIPT = path
 
 export function isSupported(): Support {
   return { ok: true };
+}
+
+/**
+ * Electron's setContentProtection calls SetWindowDisplayAffinity, and the
+ * affinity that removes a window from a capture rather than blacking it out,
+ * WDA_EXCLUDEFROMCAPTURE, arrived in Windows 10 2004 (build 19041). Older
+ * builds fall back to WDA_MONITOR, which paints a black rectangle into the
+ * recording: worse than simply showing the bar.
+ *
+ * os.release() reports the NT version, "10.0.19045", so the build is the third
+ * field. Windows 11 reports 10.0.22000 and up, which passes the same test.
+ */
+export function canHideFromCapture(): boolean {
+  const build = Number(os.release().split('.')[2]);
+  return Number.isFinite(build) && build >= 19041;
 }
 
 /**

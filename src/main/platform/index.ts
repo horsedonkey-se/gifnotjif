@@ -3,6 +3,7 @@
 //   isSupported()          -> { ok, reason? }
 //   captureArgs(options)   -> string[]  ffmpeg arguments
 //   copyGifToClipboard(p)  -> Promise<void>
+//   canHideFromCapture()   -> boolean   can a window be kept out of the capture
 //
 // Adapters that are not implemented still return usable captureArgs and a
 // truthful isSupported(), so the caller can fall back to saving the file.
@@ -27,5 +28,6 @@ export function getPlatform(name: string = process.platform): PlatformAdapter {
       throw new Error(unsupported);
     },
     copyGifToClipboard: () => Promise.reject(new Error(unsupported)),
+    canHideFromCapture: () => false,
   };
 }

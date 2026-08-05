@@ -27,6 +27,15 @@ export function isSupported(): Support {
   return { ok: false, reason: NOT_IMPLEMENTED };
 }
 
+/**
+ * setContentProtection sets NSWindowSharingNone here, which should keep the
+ * window out of an avfoundation screen capture. Nobody has run it, so claim
+ * nothing and let the recording bar place itself outside the region instead.
+ */
+export function canHideFromCapture(): boolean {
+  return false;
+}
+
 export function captureArgs({
   x,
   y,

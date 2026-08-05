@@ -84,6 +84,14 @@ function notify(title: string, body: string): void {
   if (Notification.isSupported()) new Notification({ title, body }).show();
 }
 
+/** An accelerator as the user would read it off their own keyboard. */
+function hotkeyLabel(accelerator: string): string {
+  return accelerator.replace(
+    /CommandOrControl|CmdOrCtrl|Command|Cmd|Control/g,
+    process.platform === 'darwin' ? 'Cmd' : 'Ctrl',
+  );
+}
+
 function setTrayState(next: State): void {
   state = next;
   if (!tray) return;
@@ -152,6 +160,18 @@ async function beginRecording(): Promise<void> {
   const videoPath = path.join(dir, `${stamp}.mp4`);
   const gifPath = path.join(dir, `${stamp}.gif`);
 
+  // The bar goes up before ffmpeg does. It is only kept out of the recording
+  // once the compositor knows to exclude it, and that has to be true of the
+  // very first captured frame, not the one after it faded in.
+  const hud = showHud(region, () => void stopRecording());
+  if (!hud.visible) {
+    notify(
+      'Recording',
+      `Press ${hotkeyLabel(config.hotkey)} or click the tray icon to stop. ` +
+        'The bar is hidden so it stays out of the GIF.',
+    );
+  }
+
   try {
     const rec = startRecording({
       ...region,
@@ -159,10 +179,10 @@ async function beginRecording(): Promise<void> {
       drawMouse: config.drawMouse,
       outPath: videoPath,
     });
-    const hud = showHud(region, () => void stopRecording());
     current = { rec, hud, videoPath, gifPath };
     setTrayState('recording');
   } catch (err) {
+    hud.close();
     setTrayState('idle');
     fail('Could not start recording', err);
   }

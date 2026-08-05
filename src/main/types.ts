@@ -22,6 +22,12 @@ export interface PlatformAdapter {
   isSupported(): Support;
   captureArgs(options: CaptureOptions): string[];
   copyGifToClipboard(gifPath: string): Promise<unknown>;
+  /**
+   * Whether a window marked content-protected is absent from what this
+   * platform's capture backend records. False means the recording bar has to
+   * stay outside the captured rectangle to keep out of the GIF.
+   */
+  canHideFromCapture(): boolean;
 }
 
 /** Handle over a recording in flight. */
@@ -36,6 +42,8 @@ export interface Recording {
 export interface Hud {
   setStatus(text: string): void;
   close(): void;
+  /** False when there was nowhere to put the bar outside the recording. */
+  readonly visible: boolean;
 }
 
 // What the preloads put on `window`. The renderer sees these through
