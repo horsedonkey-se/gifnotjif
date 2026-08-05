@@ -30,6 +30,24 @@ export interface CaptureOptions extends Region {
   display?: CaptureDisplay;
 }
 
+/**
+ * A window the user could pick, frontmost first.
+ *
+ * Picking one only reads its rectangle: the capture that follows is the same
+ * desktop grab a dragged region gets. ffmpeg can capture a window as such on
+ * Windows alone, through gdigrab's `title=` input, and it does so with BitBlt
+ * against the window's device context, which hands back black or stale frames
+ * for anything drawn on the GPU. That is most of a modern desktop, and a
+ * recording that fails convincingly is the one failure this app refuses.
+ */
+export interface WindowInfo {
+  title: string;
+  /** Physical pixels, virtual-desktop origin: the same units as Region. */
+  bounds: Region;
+  /** Owning process, so the picker can drop its own overlays. -1 when unknown. */
+  pid: number;
+}
+
 export interface ClipboardOptions {
   /**
    * Linux only. X11 and Wayland both let one owner advertise a single type per
@@ -57,6 +75,14 @@ export interface PlatformAdapter {
    * no only costs the user the paste: the file is still on disk.
    */
   clipboardSupport(): Support;
+  /**
+   * Whether the windows on screen can be listed here. A no costs only the
+   * window picker, so it never blocks a recording: dragging a rectangle is the
+   * mode that works everywhere.
+   */
+  windowListSupport(): Support;
+  /** On-screen windows, frontmost first. Empty rather than throwing. */
+  listWindows(): Promise<WindowInfo[]>;
   captureArgs(options: CaptureOptions): string[];
   copyGifToClipboard(gifPath: string, options?: ClipboardOptions): Promise<unknown>;
   /**
@@ -96,6 +122,21 @@ export interface OverlayBridge {
   /** Rectangle in CSS pixels, relative to the overlay window. */
   confirm(rect: Region): void;
   cancel(): void;
+  /**
+   * The pickable windows, already converted to this overlay's CSS pixels, and
+   * arriving after the overlay is on screen rather than with it. Listing them
+   * costs a process launch, and the overlay must not wait on one.
+   */
+  onWindows(fn: (windows: PickableWindow[]) => void): void;
+}
+
+/** A window as the overlay renderer sees it: CSS pixels, this window's origin. */
+export interface PickableWindow {
+  title: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface HudBridge {

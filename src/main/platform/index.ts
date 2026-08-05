@@ -2,14 +2,18 @@
 //
 //   captureSupport()       -> { ok, reason? }  can this machine record at all
 //   clipboardSupport()     -> { ok, reason? }  can a GIF go on the clipboard
+//   windowListSupport()    -> { ok, reason? }  can the open windows be listed
+//   listWindows()          -> WindowInfo[]     the windows, frontmost first
 //   captureArgs(options)   -> string[]         ffmpeg arguments
 //   copyGifToClipboard(p)  -> Promise<unknown>
 //   canHideFromCapture()   -> boolean          can a window be kept out of the capture
 //
-// The two support questions are separate because they fail separately. A
-// missing clipboard tool still leaves the user a GIF on disk, so recording goes
-// ahead and the file becomes the deliverable. A platform that cannot capture
-// has nothing to offer, so it is refused before the overlay ever opens.
+// The support questions are separate because they fail separately. A missing
+// clipboard tool still leaves the user a GIF on disk, so recording goes ahead
+// and the file becomes the deliverable. A platform that cannot capture has
+// nothing to offer, so it is refused before the overlay ever opens. And a
+// machine whose windows cannot be listed loses only the window picker: dragging
+// a rectangle is the mode that works everywhere.
 
 import * as darwin from './darwin';
 import * as linux from './linux';
@@ -28,6 +32,8 @@ export function getPlatform(name: string = process.platform): PlatformAdapter {
   return {
     captureSupport: () => ({ ok: false, reason: unsupported }),
     clipboardSupport: () => ({ ok: false, reason: unsupported }),
+    windowListSupport: () => ({ ok: false, reason: unsupported }),
+    listWindows: () => Promise.resolve([]),
     captureArgs: () => {
       throw new Error(unsupported);
     },

@@ -8,6 +8,11 @@ declare global {
     overlay: OverlayBridge;
     hud: HudBridge;
   }
+
+  // A classic script cannot import, so any type its code names has to be
+  // global. This one is aliased rather than redefined, so the two ends of the
+  // channel still cannot drift apart.
+  type PickableWindow = import('../main/types').PickableWindow;
 }
 
 export {};

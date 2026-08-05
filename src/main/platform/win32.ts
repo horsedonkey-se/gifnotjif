@@ -3,11 +3,14 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 
 import { unpacked } from '../paths';
-import type { CaptureOptions, Support } from '../types';
+import type { CaptureOptions, Support, WindowInfo } from '../types';
 
-// Packaged builds must unpack this script: powershell.exe cannot read a file
+// Packaged builds must unpack these scripts: powershell.exe cannot read a file
 // from inside app.asar. See asarUnpack in the build config.
 const COPY_SCRIPT = unpacked(path.join(__dirname, '..', 'scripts', 'copy-gif.ps1'));
+const LIST_WINDOWS_SCRIPT = unpacked(
+  path.join(__dirname, '..', 'scripts', 'list-windows.ps1'),
+);
 
 export function captureSupport(): Support {
   return { ok: true };
@@ -15,6 +18,59 @@ export function captureSupport(): Support {
 
 export function clipboardSupport(): Support {
   return { ok: true };
+}
+
+export function windowListSupport(): Support {
+  return { ok: true };
+}
+
+/** One row of list-windows.ps1's JSON. */
+interface RawWindow {
+  title: string;
+  pid: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * The on-screen windows, frontmost first, in physical pixels.
+ *
+ * Never rejects. This feeds a convenience in the picker, and a picker that
+ * throws would take the whole selection overlay down with it over a window
+ * list, when dragging a rectangle would have worked perfectly.
+ */
+export function listWindows(): Promise<WindowInfo[]> {
+  return new Promise((resolve) => {
+    execFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', LIST_WINDOWS_SCRIPT,
+      ],
+      // Titles carry emoji and accents, and the script writes UTF-8 to say so.
+      // The default here is the console code page, which would mangle them.
+      { windowsHide: true, encoding: 'utf8', timeout: 5000 },
+      (err, stdout) => {
+        if (err) return resolve([]);
+        try {
+          const raw = JSON.parse(stdout) as RawWindow[];
+          resolve(
+            raw.map((w) => ({
+              title: w.title,
+              pid: w.pid,
+              bounds: { x: w.x, y: w.y, width: w.width, height: w.height },
+            })),
+          );
+        } catch {
+          resolve([]);
+        }
+      },
+    );
+  });
 }
 
 /**

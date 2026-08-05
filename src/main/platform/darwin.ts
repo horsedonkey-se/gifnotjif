@@ -16,11 +16,14 @@ import { execFile, execFileSync } from 'node:child_process';
 
 import { ffmpegPath } from '../ffmpeg';
 import { unpacked } from '../paths';
-import type { CaptureOptions, Support } from '../types';
+import type { CaptureOptions, Support, WindowInfo } from '../types';
 
 // osascript cannot read a script out of app.asar, exactly as powershell.exe
 // cannot. See asarUnpack in the build config.
 const COPY_SCRIPT = unpacked(path.join(__dirname, '..', 'scripts', 'copy-gif.jxa.js'));
+const LIST_WINDOWS_SCRIPT = unpacked(
+  path.join(__dirname, '..', 'scripts', 'list-windows.jxa.js'),
+);
 
 const NO_PERMISSION =
   'macOS has not granted Screen Recording permission. Open System Settings > ' +
@@ -56,6 +59,56 @@ export function captureSupport(): Support {
 /** osascript ships with the OS, so there is nothing here that can be missing. */
 export function clipboardSupport(): Support {
   return { ok: true };
+}
+
+/**
+ * Same permission as capture, and for a sharper reason than it looks:
+ * CGWindowListCopyWindowInfo returns geometry to anyone, but leaves out window
+ * *titles* unless Screen Recording is granted. A picker that could show only
+ * untitled rectangles is worse than one that says why it cannot.
+ */
+export function windowListSupport(): Support {
+  const status = screenAccess();
+  if (status === 'denied' || status === 'restricted') {
+    return { ok: false, reason: NO_PERMISSION };
+  }
+  return { ok: true };
+}
+
+/** One row of list-windows.jxa.js's JSON. */
+interface RawWindow {
+  title: string;
+  pid: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The on-screen windows, frontmost first. Never rejects; see win32.ts. */
+export function listWindows(): Promise<WindowInfo[]> {
+  return new Promise((resolve) => {
+    execFile(
+      'osascript',
+      ['-l', 'JavaScript', LIST_WINDOWS_SCRIPT],
+      { encoding: 'utf8', timeout: 5000 },
+      (err, stdout) => {
+        if (err) return resolve([]);
+        try {
+          const raw = JSON.parse(stdout) as RawWindow[];
+          resolve(
+            raw.map((w) => ({
+              title: w.title,
+              pid: w.pid,
+              bounds: { x: w.x, y: w.y, width: w.width, height: w.height },
+            })),
+          );
+        } catch {
+          resolve([]);
+        }
+      },
+    );
+  });
 }
 
 /**

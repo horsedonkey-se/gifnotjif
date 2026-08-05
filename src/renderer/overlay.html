@@ -3,7 +3,20 @@
 <link rel="stylesheet" href="tokens.css" />
 <link rel="stylesheet" href="overlay.css" />
 
-<div id="hint">Drag to select a region &middot; <kbd>Esc</kbd> to cancel</div>
+<!-- Both ways of selecting are on screen at once. A mode behind a keystroke is a
+     mode nobody finds. Tab does the same thing for anyone who would rather not
+     move the mouse to the top of the screen. #window starts disabled and is
+     enabled when the window list arrives, a moment after the overlay. -->
+<div id="hint">
+  <div id="modes">
+    <button id="region" class="mode" aria-pressed="true">Region</button>
+    <button id="window" class="mode" aria-pressed="false" disabled>Window</button>
+  </div>
+  <span id="tip">Drag to select</span>
+  <span class="sep"></span>
+  <span><kbd>Tab</kbd> to switch &middot; <kbd>Esc</kbd> to cancel</span>
+</div>
+
 <div id="selection" hidden>
   <i class="corner"></i><i class="corner"></i>
   <i class="corner"></i><i class="corner"></i>

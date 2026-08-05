@@ -17,10 +17,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-import type { CaptureOptions, ClipboardOptions, Support } from '../types';
+import type { CaptureOptions, ClipboardOptions, Support, WindowInfo } from '../types';
 
 /** What most apps read for a paste-as-file, and the nearest thing to CF_HDROP. */
 const DEFAULT_MIME = 'text/uri-list';
@@ -97,6 +97,81 @@ export function clipboardSupport(): Support {
     return { ok: false, reason: `${command} is not installed. Install ${install} to copy the GIF.` };
   }
   return { ok: true };
+}
+
+/**
+ * Listing windows needs xwininfo, from x11-utils. It is refused by name when
+ * absent, exactly as the clipboard is when xclip is missing, and for the same
+ * reason: an install line is worth more to the reader than a silent absence.
+ */
+export function windowListSupport(): Support {
+  if (session() === 'wayland') return { ok: false, reason: WAYLAND_UNSUPPORTED };
+  if (session() === 'none') return { ok: false, reason: NO_DISPLAY };
+  if (!onPath('xwininfo')) {
+    return {
+      ok: false,
+      reason:
+        'xwininfo is not installed. Install x11-utils (apt install x11-utils) ' +
+        'to pick a window.',
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Every mapped, titled child of the root window, with its geometry.
+ *
+ * `xwininfo -root -children` prints one line per child, and the shape is fixed
+ * enough to read with a regular expression:
+ *
+ *   0x3a00007 "Firefox": ("Navigator" "firefox")  1080x1201+2560+-201  +2560+-201
+ *
+ * The first geometry is relative to the parent and the second is absolute, and
+ * for a direct child of the root they are the same thing. The absolute one is
+ * taken because that is what it claims to be.
+ *
+ * X11 gives up a window's owning process only through a separate _NET_WM_PID
+ * round trip per window, which is not worth a process launch each, so pid is
+ * -1 here and the caller filters its own overlays by title instead.
+ */
+export function listWindows(): Promise<WindowInfo[]> {
+  if (!windowListSupport().ok) return Promise.resolve([]);
+
+  return new Promise((resolve) => {
+    execFile(
+      'xwininfo',
+      ['-root', '-children'],
+      { encoding: 'utf8', timeout: 5000 },
+      (err, stdout) => {
+        if (err) return resolve([]);
+
+        const found: WindowInfo[] = [];
+        const line =
+          /^\s*0x[0-9a-f]+\s+"(.+?)":\s+\([^)]*\)\s+(\d+)x(\d+)\+(-?\d+)\+(-?\d+)\s+\+(-?\d+)\+(-?\d+)/;
+
+        for (const text of stdout.split('\n')) {
+          const m = line.exec(text);
+          if (!m) continue;
+
+          const width = Number(m[2]);
+          const height = Number(m[3]);
+          // As on Windows: below this it is a shell helper, not something
+          // anyone means to record.
+          if (width < 32 || height < 32) continue;
+
+          found.push({
+            title: m[1] ?? '',
+            pid: -1,
+            bounds: { x: Number(m[6]), y: Number(m[7]), width, height },
+          });
+        }
+
+        // xwininfo prints children bottom to top; the picker wants the
+        // frontmost first so an overlap resolves to the window on top.
+        resolve(found.reverse());
+      },
+    );
+  });
 }
 
 /**

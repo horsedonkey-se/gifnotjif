@@ -2,8 +2,9 @@
 
 # gifnotjif
 
-Press a hotkey, drag a box over part of your screen, press stop. The GIF lands
-on your clipboard, ready to paste into Slack, Discord, or a GitHub comment.
+Press a hotkey, drag a box over part of your screen or click a window, press
+stop. The GIF lands on your clipboard, ready to paste into Slack, Discord, or a
+GitHub comment.
 
 Windows works today. macOS and Linux on X11 have adapters that have not yet been
 run on real hardware. Wayland is refused outright. See

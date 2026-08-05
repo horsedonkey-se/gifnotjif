@@ -1,7 +1,47 @@
 import path from 'node:path';
 import { BrowserWindow, ipcMain, screen, type Display, type IpcMainEvent } from 'electron';
 
-import type { CaptureDisplay, Region } from './types';
+import { getPlatform } from './platform';
+import type { CaptureDisplay, PickableWindow, Region, WindowInfo } from './types';
+
+/**
+ * The overlay's own title, from src/renderer/overlay.html.
+ *
+ * The window list is built while the overlay is already on screen, so the
+ * overlay is in it. On Windows and macOS that is filtered by process id; X11
+ * only gives one up through a separate round trip per window, so there the
+ * title is the handle we have.
+ */
+const OVERLAY_TITLE = 'Select a region';
+
+/**
+ * The windows a user could point at, ready for one overlay.
+ *
+ * Two conversions in one pass. Physical pixels become DIP, because that is what
+ * window positions are measured in, and then the display's own origin comes off,
+ * because the renderer measures in CSS pixels from its own top left. This is the
+ * same journey `onConfirm` makes in reverse, and it stays here for the same
+ * reason: doing it by hand with scaleFactor breaks the moment two displays are
+ * scaled differently.
+ *
+ * The null first argument is load-bearing. Passing the overlay window instead
+ * scales every rectangle by *that* window's display, so a window living on a
+ * differently scaled display comes back the wrong size and in the wrong place,
+ * and can then be picked through an overlay it is not even on. Null scales each
+ * rectangle by the display nearest to it, which is the one it is on.
+ */
+export function forDisplay(windows: WindowInfo[], display: Display): PickableWindow[] {
+  return windows.map((w) => {
+    const dip = screen.screenToDipRect(null, w.bounds);
+    return {
+      title: w.title,
+      x: Math.round(dip.x - display.bounds.x),
+      y: Math.round(dip.y - display.bounds.y),
+      width: Math.round(dip.width),
+      height: Math.round(dip.height),
+    };
+  });
+}
 
 /** gdigrab and libx264 both want even dimensions. */
 export const even = (n: number): number => Math.max(2, Math.floor(n / 2) * 2);
@@ -21,6 +61,14 @@ export function selectRegion(): Promise<Selection | null> {
   return new Promise((resolve) => {
     const windows = new Map<BrowserWindow, Display>();
     let settled = false;
+
+    // Started now and deliberately not awaited. Listing windows costs a
+    // PowerShell or osascript launch, a few hundred milliseconds, and an
+    // overlay that waited for one would make the hotkey feel broken. The
+    // picker's chip stays disabled until this lands.
+    const listing = getPlatform().windowListSupport().ok
+      ? getPlatform().listWindows()
+      : Promise.resolve([]);
 
     function finish(result: Selection | null): void {
       if (settled) return;
@@ -117,6 +165,19 @@ export function selectRegion(): Promise<Selection | null> {
       win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       void win.loadFile(path.join(__dirname, '..', 'renderer', 'overlay.html'));
       win.on('closed', () => finish(null));
+
+      // Waiting for both: the list has to exist, and the page has to be running
+      // to receive it. Either can land first.
+      void Promise.all([
+        listing,
+        new Promise<void>((ready) => win.webContents.once('did-finish-load', () => ready())),
+      ]).then(([found]) => {
+        if (settled || win.isDestroyed()) return;
+        const pickable = found.filter(
+          (w) => w.pid !== process.pid && w.title !== OVERLAY_TITLE,
+        );
+        win.webContents.send('overlay:windows', forDisplay(pickable, display));
+      });
 
       windows.set(win, display);
     }

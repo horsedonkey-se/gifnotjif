@@ -20,7 +20,13 @@ body::before {
   background: rgba(0, 0, 0, 0.35);
 }
 
-body.dragging::before {
+/* The selection's own ring shadow dims everything outside it, so the base dim
+   has to go or the two stack up and the screen goes muddy. In window mode that
+   only applies once a window is actually highlighted: with nothing under the
+   cursor there is no ring, and the base dim is the only thing left saying the
+   overlay is there at all. */
+body.dragging::before,
+body.picking.over::before {
   background: transparent;
 }
 
@@ -107,14 +113,82 @@ body.dragging::before {
   top: 28px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 9px 15px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px 8px 8px;
   background: var(--panel);
   border: 1px solid var(--hairline);
   border-radius: 10px;
   box-shadow: var(--shadow);
   color: var(--muted);
+  white-space: nowrap;
+  /* The bar itself is inert, but the two mode buttons inside it are not. */
   pointer-events: none;
   transition: opacity 120ms ease;
+}
+
+/* A segmented control: both ways of selecting, side by side, so neither is a
+   mode the user has to already know about. */
+#modes {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+}
+
+.mode {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.mode:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.mode[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+/* Disabled until the window list arrives, which is a moment after the overlay,
+   and permanently on a machine that cannot list windows at all. */
+.mode:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sep {
+  width: 1px;
+  height: 16px;
+  background: var(--hairline);
+}
+
+/* Nothing is being dragged in window mode, so the crosshair would be a lie. */
+body.picking {
+  cursor: default;
+}
+
+/* The highlight is not dragged into existence, so it should arrive rather than
+   appear, and move between windows rather than jump. */
+body.picking #selection {
+  transition: left 90ms ease, top 90ms ease, width 90ms ease, height 90ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.picking #selection {
+    transition: none;
+  }
 }
 
 body.dragging #hint {

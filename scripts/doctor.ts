@@ -50,6 +50,7 @@ void app.whenReady().then(async () => {
   console.log(`ffmpeg    ${ffmpegPath}`);
   console.log(`electron  ${process.versions.electron}`);
   reportPlatformDetail();
+  await reportWindowList(platform);
   console.log();
 
   for (const d of screen.getAllDisplays()) {
@@ -122,6 +123,32 @@ void app.whenReady().then(async () => {
  * print the mapping. On Linux the answer to "why did it refuse?" is always an
  * environment variable, so print those.
  */
+/**
+ * What the overlay's window picker will have to work with.
+ *
+ * Bounds are printed because they are the part that goes wrong quietly: a
+ * window listed with the invisible resize border included, or in the wrong
+ * coordinate space, still produces a plausible-looking list and then captures
+ * the wrong rectangle.
+ */
+async function reportWindowList(platform: ReturnType<typeof getPlatform>): Promise<void> {
+  const support = platform.windowListSupport();
+  console.log(`windows   ${support.ok ? 'listable' : `no - ${support.reason}`}`);
+  if (!support.ok) return;
+
+  const found = await platform.listWindows();
+  console.log(`          ${found.length} on screen, frontmost first`);
+  for (const w of found.slice(0, 10)) {
+    const b = w.bounds;
+    const title = w.title.length > 48 ? `${w.title.slice(0, 47)}...` : w.title;
+    console.log(
+      `  ${String(b.width).padStart(5)}x${String(b.height).padEnd(5)} ` +
+        `at (${b.x},${b.y})  pid ${w.pid}  ${title}`,
+    );
+  }
+  if (found.length > 10) console.log(`  ... and ${found.length - 10} more`);
+}
+
 function reportPlatformDetail(): void {
   if (process.platform === 'darwin') {
     console.log(`screen access  ${systemPreferences.getMediaAccessStatus('screen')}`);
