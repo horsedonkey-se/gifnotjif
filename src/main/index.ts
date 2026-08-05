@@ -37,6 +37,18 @@ let current: Current | null = null;
 // Only one instance may hold the global hotkey.
 if (!app.requestSingleInstanceLock()) app.quit();
 
+/**
+ * Windows reads the toast's app name from the AppUserModelID, and defaults it
+ * to "electron.app.Electron". A packaged build must use the same ID the
+ * installer stamps on the Start Menu shortcut, which is where Windows finds the
+ * display name. Unpackaged there is no shortcut, so Windows prints the ID
+ * itself: use the bare app name so the toast still reads properly in dev.
+ * Must run before any window or notification exists.
+ */
+if (process.platform === 'win32') {
+  app.setAppUserModelId(app.isPackaged ? 'dev.gifnotjif.app' : 'gifnotjif');
+}
+
 function recordingsDir(): string {
   return path.join(app.getPath('userData'), 'recordings');
 }
