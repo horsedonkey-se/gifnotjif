@@ -81,6 +81,14 @@ export function selectRegion(): Promise<Region | null> {
         },
       });
 
+      // The constructor sizes the window against whichever display Windows
+      // first places it on, and clamps it to that one. A display taller than
+      // the primary therefore opens short: a 1080x1920 portrait monitor next to
+      // a 2048x1152 primary gets a 1080x1122 overlay, so the bottom of the
+      // screen cannot be selected at all. Setting the bounds again once the
+      // window exists, and so sits on the right display, applies them in full.
+      win.setBounds(display.bounds);
+
       // 'screen-saver' puts it above the taskbar and other topmost windows.
       win.setAlwaysOnTop(true, 'screen-saver');
       win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
