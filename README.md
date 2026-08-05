@@ -92,7 +92,7 @@ paste**. Recordings live in the app's user data folder and are swept after
 
 | key | default | notes |
 |---|---|---|
-| `hotkey` | `CommandOrControl+Shift+G` | restart to apply |
+| `hotkey` | `CommandOrControl+Shift+G` | if another app owns it, a fallback is bound instead and the tray says which |
 | `discardHotkey` | `Escape` | throws the take away; held only while recording, so it is taken from the app on camera for that time. `""` turns it off |
 | `maxDurationSecs` | `300` | a take stops itself here and is encoded as usual. `0` for no limit |
 | `minFreeDiskMb` | `500` | refuses to start, and stops a running take, below this much free disk. `0` turns it off |

@@ -13,6 +13,7 @@ import {
 
 import * as settings from './settings';
 import * as autostart from './autostart';
+import * as hotkey from './hotkey';
 import { selectRegion } from './overlay';
 import { showHud } from './hud';
 import { startRecording } from './recorder';
@@ -36,6 +37,7 @@ let config: Settings = settings.DEFAULTS;
 let state: State = 'idle';
 let current: Current | null = null;
 let updater: Updater | null = null;
+let unwatchSettings: (() => void) | null = null;
 
 // Only one instance may hold the global hotkey.
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -126,11 +128,54 @@ function hotkeyLabel(accelerator: string): string {
   );
 }
 
+/** What is actually bound right now, which is not always what was asked for. */
+let activeHotkey: string | null = null;
+
+/**
+ * Takes the record hotkey, and says so when what it got is not what was asked
+ * for. Safe to call again: the previous binding is handed back first, which is
+ * what makes a settings change work without a restart.
+ */
+function applyHotkey(): void {
+  hotkey.unbind(activeHotkey);
+
+  const wanted = config.hotkey;
+  activeHotkey = hotkey.bindFirstAvailable(wanted, () => void toggle());
+
+  // Not buildTrayMenu: the tooltip names the hotkey too, and it is the only
+  // part of this the user sees without opening the menu.
+  setTrayState(state);
+
+  if (!activeHotkey) {
+    // Nothing left to fall back to. The tray icon still records, so this is a
+    // dialog rather than the end of the world, but it needs the user to act.
+    dialog.showErrorBox(
+      'Hotkey unavailable',
+      `Neither ${hotkeyLabel(wanted)} nor any fallback could be registered; ` +
+        'other applications hold them all. Set "hotkey" in settings.json to ' +
+        'something free. Until then, click the tray icon to record.',
+    );
+  } else if (activeHotkey !== wanted) {
+    notify(
+      'Hotkey in use',
+      `${hotkeyLabel(wanted)} belongs to another application, so gifnotjif ` +
+        `is on ${hotkeyLabel(activeHotkey)} instead.`,
+    );
+  }
+}
+
 function setTrayState(next: State): void {
   state = next;
+
+  // A save that arrived mid-take has been waiting for this. Queued rather than
+  // called, so the recording that just ended finishes unwinding first.
+  if (next === 'idle' && pendingReload) queueMicrotask(reloadSettings);
+
   if (!tray) return;
   const tooltips: Record<State, string> = {
-    idle: 'gifnotjif - press the hotkey to record',
+    idle: activeHotkey
+      ? `gifnotjif - press ${hotkeyLabel(activeHotkey)} to record`
+      : 'gifnotjif - click to record',
     selecting: 'gifnotjif - selecting a region',
     recording: 'gifnotjif - recording',
     processing: 'gifnotjif - encoding',
@@ -201,7 +246,10 @@ function buildTrayMenu(target: Tray): void {
     Menu.buildFromTemplate([
       {
         label: state === 'recording' ? 'Stop recording' : 'Record a region',
-        accelerator: config.hotkey,
+        // The one that is bound, which is not always the one in settings.json.
+        // Omitted entirely when nothing is, rather than advertising a key that
+        // does nothing.
+        ...(activeHotkey ? { accelerator: activeHotkey } : {}),
         enabled: state === 'idle' || state === 'recording',
         click: () => void toggle(),
       },
@@ -272,6 +320,44 @@ function setAutostart(on: boolean): void {
   if (tray) buildTrayMenu(tray);
 }
 
+/** Set when settings.json changed during a recording, applied once it ends. */
+let pendingReload = false;
+
+/**
+ * Picks up settings.json without a restart.
+ *
+ * Everything except the hotkey is read at the moment it is used, so a reload is
+ * mostly just replacing the object. The hotkey is the exception: it is held by
+ * the operating system and has to be handed back and taken again.
+ *
+ * Never mid-take. The capture is already running under the old fps, and the
+ * encode is about to read these values, so swapping them now would produce a
+ * GIF made half from each.
+ */
+function reloadSettings(): void {
+  if (state !== 'idle') {
+    pendingReload = true;
+    return;
+  }
+  pendingReload = false;
+
+  const previous = config;
+  config = settings.load();
+
+  // Rebound when the user changed it, and also when there is nothing bound at
+  // all: this is how someone who freed up the combination gets it back without
+  // restarting.
+  const rebinding = config.hotkey !== previous.hotkey || !activeHotkey;
+  if (rebinding) applyHotkey();
+  else setTrayState(state);
+
+  // applyHotkey has already spoken if it fell back or failed outright, and two
+  // notifications for one save would be one too many.
+  if (activeHotkey && activeHotkey === config.hotkey) {
+    notify('Settings reloaded', `Recording with ${hotkeyLabel(activeHotkey)}.`);
+  }
+}
+
 async function toggle(): Promise<void> {
   if (state === 'recording') return stopRecording();
   if (state !== 'idle') return;
@@ -285,9 +371,18 @@ async function toggle(): Promise<void> {
  * settings. A key another application already owns is not worth a dialog
  * mid-recording: the bar's discard button and the tray both still work.
  */
+/**
+ * Both the configured record key and the one actually bound, which are not
+ * always the same. Taking either would hand it back at the end of the take and
+ * leave the app with no record hotkey at all.
+ */
+function clashesWithRecordHotkey(key: string): boolean {
+  return key === config.hotkey || key === activeHotkey;
+}
+
 function holdDiscardHotkey(): void {
   const key = config.discardHotkey;
-  if (!key || key === config.hotkey) return;
+  if (!key || clashesWithRecordHotkey(key)) return;
   try {
     globalShortcut.register(key, () => void discardRecording());
   } catch {
@@ -297,7 +392,7 @@ function holdDiscardHotkey(): void {
 
 function releaseDiscardHotkey(): void {
   const key = config.discardHotkey;
-  if (!key || key === config.hotkey) return;
+  if (!key || clashesWithRecordHotkey(key)) return;
   globalShortcut.unregister(key);
 }
 
@@ -424,7 +519,9 @@ async function beginRecording(): Promise<void> {
   if (!hud.visible) {
     notify(
       'Recording',
-      `Press ${hotkeyLabel(config.hotkey)} or click the tray icon to stop` +
+      (activeHotkey
+        ? `Press ${hotkeyLabel(activeHotkey)} or click the tray icon to stop`
+        : 'Click the tray icon to stop') +
         (config.discardHotkey
           ? `, ${hotkeyLabel(config.discardHotkey)} to throw the take away. `
           : '. ') +
@@ -561,20 +658,19 @@ void app.whenReady().then(async () => {
   tray = new Tray(
     nativeImage.createFromPath(path.join(app.getAppPath(), 'assets', 'tray.png')),
   );
-  setTrayState('idle');
-
   // Left click starts and stops a recording; the menu stays on right click.
   // On macOS a context menu swallows the left click, so the menu item is the
   // only way in there.
   tray.on('click', () => void toggle());
 
-  if (!globalShortcut.register(config.hotkey, () => void toggle())) {
-    dialog.showErrorBox(
-      'Hotkey unavailable',
-      `Another application already owns ${config.hotkey}. ` +
-        'Change "hotkey" in settings.json and restart.',
-    );
-  }
+  // Before the first tray state, because the tooltip and the menu both name
+  // whichever hotkey this ends up binding.
+  applyHotkey();
+  setTrayState('idle');
+
+  // Editing settings.json is the only way to configure this app, so the file
+  // being live is what makes it configurable rather than merely editable.
+  unwatchSettings = settings.watch(reloadSettings);
 
   if (config.autoUpdate) {
     // Returns null unpackaged, which also keeps the tray item out of dev runs
@@ -588,7 +684,10 @@ void app.whenReady().then(async () => {
   await pruneOldRecordings();
 });
 
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  unwatchSettings?.();
+});
 
 // Closing the overlay or HUD must not quit a tray-resident app.
 app.on('window-all-closed', () => {});
