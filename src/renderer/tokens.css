@@ -1,0 +1,27 @@
+/* Shared look for every surface the app draws on screen. Both the overlay and
+   the HUD link this before their own stylesheet. */
+
+:root {
+  --panel: rgba(24, 26, 31, 0.92);
+  --hairline: rgba(255, 255, 255, 0.09);
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --red: #e5484d;
+
+  --r-panel: 12px;
+  --r-control: 8px;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.45);
+
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
+}
+
+/* Everything that reads as a floating surface: the HUD bar, the size readout,
+   the hint. Sharing one class is what makes them look like the same object. */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow);
+}

@@ -1,8 +1,13 @@
 <meta charset="utf-8" />
 <title>Select a region</title>
+<link rel="stylesheet" href="tokens.css" />
 <link rel="stylesheet" href="overlay.css" />
 
 <div id="hint">Drag to select a region &middot; <kbd>Esc</kbd> to cancel</div>
-<div id="selection" hidden><div id="size"></div></div>
+<div id="selection" hidden>
+  <i class="corner"></i><i class="corner"></i>
+  <i class="corner"></i><i class="corner"></i>
+  <div id="size"></div>
+</div>
 
 <script src="overlay.js"></script>

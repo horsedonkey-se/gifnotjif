@@ -1,12 +1,25 @@
 <meta charset="utf-8" />
 <title>Recording</title>
+<link rel="stylesheet" href="tokens.css" />
 <link rel="stylesheet" href="hud.css" />
 
-<div id="bar">
-  <span id="dot"></span>
-  <span id="clock">0:00</span>
-  <button id="stop">Stop</button>
-  <span id="status" hidden></span>
+<!-- The two rows sit on top of each other and cross-fade, so the bar does not
+     jump when recording ends. #status carries no `hidden` attribute: the row it
+     lives in handles visibility, and the renderer writing `hidden = false` on an
+     element that was never hidden is harmless. The spinner is a sibling of
+     #status rather than a child, because the renderer sets the status through
+     textContent, which would wipe any children. -->
+<div id="bar" class="panel">
+  <div id="live">
+    <span id="rec"><span id="dot"></span></span>
+    <span id="clock">0:00</span>
+    <button id="stop"><i class="glyph"></i>Stop</button>
+  </div>
+
+  <div id="busy">
+    <span id="spinner" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span id="status"></span>
+  </div>
 </div>
 
 <script src="hud.js"></script>

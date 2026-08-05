@@ -3,8 +3,21 @@ import { BrowserWindow, ipcMain, screen, type IpcMainEvent } from 'electron';
 
 import type { Hud, Region } from './types';
 
-const WIDTH = 200;
-const HEIGHT = 44;
+// The visible bar, and the transparent margin the window carries around it so
+// the bar's drop shadow has somewhere to land instead of being clipped at the
+// window edge. Must match the body padding in hud.css.
+//
+// The margin is hit-testable like the rest of the window, so it leaves a dead
+// border around the bar while recording. It sits outside the captured region,
+// and 14px is the least that fits the shadow without visible clipping.
+const BAR_W = 208;
+const BAR_H = 44;
+const MARGIN = 14;
+
+const WIDTH = BAR_W + MARGIN * 2;
+const HEIGHT = BAR_H + MARGIN * 2;
+
+/** Distance from the captured region to the visible bar, not to the window. */
 const GAP = 10;
 
 const clamp = (n: number, lo: number, hi: number): number => Math.min(Math.max(n, lo), hi);
@@ -21,18 +34,24 @@ export function showHud(region: Region, onStop: () => void): Hud {
   const display = screen.getDisplayMatching(dip);
   const work = display.workArea;
 
+  // Every clamp and gap below measures the bar. The window extends MARGIN
+  // further in each direction, and that overhang is allowed off the work area.
   const left = Math.round(
-    clamp(dip.x + dip.width / 2 - WIDTH / 2, work.x, work.x + work.width - WIDTH),
+    clamp(
+      dip.x + dip.width / 2 - WIDTH / 2,
+      work.x - MARGIN,
+      work.x + work.width - WIDTH + MARGIN,
+    ),
   );
 
   // Prefer below the selection, fall back to above it, and if the region fills
   // the display, sit at the bottom of the work area and accept the overlap.
-  const below = dip.y + dip.height + GAP;
-  const above = dip.y - HEIGHT - GAP;
+  const below = dip.y + dip.height + GAP - MARGIN;
+  const above = dip.y - GAP - BAR_H - MARGIN;
   let top: number;
-  if (below + HEIGHT <= work.y + work.height) top = below;
-  else if (above >= work.y) top = above;
-  else top = work.y + work.height - HEIGHT - GAP;
+  if (below + MARGIN + BAR_H <= work.y + work.height) top = below;
+  else if (above + MARGIN >= work.y) top = above;
+  else top = work.y + work.height - GAP - BAR_H - MARGIN;
 
   const win = new BrowserWindow({
     x: left,

@@ -5,75 +5,205 @@ body {
   overflow: hidden;
   user-select: none;
   background: transparent;
-  font: 13px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
-  color: #fff;
+  font: 13px/1 var(--font);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The window is larger than the bar so the shadow has somewhere to land. See
+   the note in src/main/hud.ts; MARGIN there and this padding must agree. */
+body {
+  box-sizing: border-box;
+  padding: 14px;
 }
 
 #bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  position: relative;
   height: 100%;
   padding: 0 12px;
   box-sizing: border-box;
-  border-radius: 8px;
-  background: rgba(20, 20, 22, 0.94);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
   -webkit-app-region: drag;
+  animation: rise 140ms ease-out;
 }
 
-#dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #f2453d;
-  animation: pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.25;
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  #dot {
-    animation: none;
+/* Both rows fill the bar and cross-fade, so neither one shifts the other. */
+#live,
+#busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: inherit;
+  transition: opacity 160ms ease;
+}
+
+#busy,
+body.busy #live {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.busy #busy {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The live row */
+
+#rec {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 8px;
+  height: 8px;
+  flex: none;
+}
+
+#dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+}
+
+/* A ring breathing outwards, rather than the whole dot blinking. */
+#rec::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--red);
+  animation: halo 1.8s ease-out infinite;
+}
+
+@keyframes halo {
+  from {
+    opacity: 0.5;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
   }
 }
 
 #clock {
-  min-width: 38px;
+  /* Wide enough for 10:00, so the row never shuffles as the timer rolls over. */
+  min-width: 42px;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 #stop {
   -webkit-app-region: no-drag;
-  padding: 5px 12px;
-  border: 0;
-  border-radius: 5px;
-  background: #f2453d;
-  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  padding: 6px 11px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-control);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
   font: inherit;
   cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+/* A small rounded square, the same shape the tray icon is built from. */
+#stop .glyph {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--red);
+  transition: background 120ms ease;
 }
 
 #stop:hover {
-  background: #ff5a52;
+  background: var(--red);
+  border-color: var(--red);
+}
+
+#stop:hover .glyph {
+  background: #fff;
+}
+
+#stop:active {
+  transform: translateY(1px);
 }
 
 #stop:disabled {
-  background: #555;
+  opacity: 0.45;
   cursor: default;
+  transform: none;
+}
+
+#stop:disabled:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--hairline);
+}
+
+#stop:disabled:hover .glyph {
+  background: var(--red);
+}
+
+/* The busy row */
+
+#spinner {
+  display: flex;
+  gap: 3px;
+  flex: none;
+}
+
+/* Three squares handing brightness along, the tray icon's cascade in motion. */
+#spinner i {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: #fff;
+  animation: cascade 1.2s ease-in-out infinite;
+}
+
+#spinner i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+#spinner i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes cascade {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  30% {
+    opacity: 1;
+  }
 }
 
 #status {
-  color: #b9b9bd;
+  color: var(--muted);
 }
 
-/* Once encoding starts there is nothing left to time or stop. */
-body.busy #dot,
-body.busy #clock,
-body.busy #stop {
-  display: none;
+@media (prefers-reduced-motion: reduce) {
+  #bar,
+  #rec::after,
+  #spinner i {
+    animation: none;
+  }
+
+  /* Without the pulse the ring would sit there as a static blob. */
+  #rec::after {
+    display: none;
+  }
 }
