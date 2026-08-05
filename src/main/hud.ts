@@ -11,7 +11,7 @@ import type { Hud, Region } from './types';
 // The margin is hit-testable like the rest of the window, so it leaves a dead
 // border around the bar while recording. It sits outside the captured region,
 // and 14px is the least that fits the shadow without visible clipping.
-const BAR_W = 208;
+const BAR_W = 244;
 const BAR_H = 44;
 const MARGIN = 14;
 
@@ -100,7 +100,7 @@ const NO_HUD: Hud = {
  * `region` is in physical pixels; window positions are in DIP, hence the
  * conversion back.
  */
-export function showHud(region: Region, onStop: () => void): Hud {
+export function showHud(region: Region, onStop: () => void, onDiscard: () => void): Hud {
   const dip = screen.screenToDipRect(null, region);
   const hideable = getPlatform().canHideFromCapture();
   const spot = place(dip, hideable);
@@ -152,8 +152,15 @@ export function showHud(region: Region, onStop: () => void): Hud {
   const onIpcStop = (event: IpcMainEvent): void => {
     if (BrowserWindow.fromWebContents(event.sender) === win) onStop();
   };
+  const onIpcDiscard = (event: IpcMainEvent): void => {
+    if (BrowserWindow.fromWebContents(event.sender) === win) onDiscard();
+  };
   ipcMain.on('hud:stop', onIpcStop);
-  win.on('closed', () => ipcMain.removeListener('hud:stop', onIpcStop));
+  ipcMain.on('hud:discard', onIpcDiscard);
+  win.on('closed', () => {
+    ipcMain.removeListener('hud:stop', onIpcStop);
+    ipcMain.removeListener('hud:discard', onIpcDiscard);
+  });
 
   return {
     visible: true,

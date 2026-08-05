@@ -2,6 +2,7 @@
 
 const clockLabel = document.getElementById('clock')!;
 const stopButton = document.getElementById('stop') as HTMLButtonElement;
+const discardButton = document.getElementById('discard') as HTMLButtonElement;
 const statusLabel = document.getElementById('status')!;
 
 const startedAt = Date.now();
@@ -13,7 +14,17 @@ const tick = window.setInterval(() => {
 
 stopButton.addEventListener('click', () => {
   stopButton.disabled = true;
+  discardButton.disabled = true;
   window.hud.stop();
+});
+
+// No confirmation. A dialog here would take focus and change what is on screen,
+// which is the one thing a screen recorder must not do, and a fluffed take costs
+// only the time it took.
+discardButton.addEventListener('click', () => {
+  stopButton.disabled = true;
+  discardButton.disabled = true;
+  window.hud.discard();
 });
 
 // The main process drives this once recording ends: encoding, then copying.

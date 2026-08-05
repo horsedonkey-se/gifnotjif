@@ -3,6 +3,7 @@
 
 export interface Settings {
   hotkey: string;
+  discardHotkey: string;
   fps: number;
   maxWidth: number;
   colors: number;
@@ -15,6 +16,11 @@ export interface Settings {
 
 export const DEFAULTS: Settings = {
   hotkey: 'CommandOrControl+Shift+G',
+  // Throws the take away. Held only while recording, but for that whole time it
+  // is taken from whatever is being recorded: press Escape to close a dialog on
+  // camera and the recording dies instead. Set it to "" to turn it off and use
+  // the bar's discard button, which costs nothing to anyone.
+  discardHotkey: 'Escape',
   fps: 12,
   // GIFs get expensive fast, and GitHub and Discord both reject images over
   // 10MB. On a busy 800x600 capture these three settings together took a

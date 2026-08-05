@@ -71,6 +71,12 @@ export interface PlatformAdapter {
 export interface Recording {
   /** Resolves once the file is closed and playable. */
   stop(): Promise<void>;
+  /**
+   * Throws the take away. Resolves once ffmpeg has exited and released the
+   * file, which is when the caller may delete it. The file it leaves behind is
+   * truncated and not playable.
+   */
+  cancel(): Promise<void>;
   readonly elapsedMs: number;
   readonly args: readonly string[];
 }
@@ -94,5 +100,6 @@ export interface OverlayBridge {
 
 export interface HudBridge {
   stop(): void;
+  discard(): void;
   onStatus(fn: (text: string) => void): void;
 }

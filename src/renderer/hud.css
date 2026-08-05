@@ -103,12 +103,69 @@ body.busy #busy {
   letter-spacing: -0.01em;
 }
 
+/* Sits to the left of Stop, and the pair is pushed to the right together. */
+#discard {
+  -webkit-app-region: no-drag;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+#discard svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  fill: none;
+}
+
+#discard:hover {
+  border-color: var(--hairline);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+#discard:active {
+  transform: translateY(1px);
+}
+
+#discard:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
+#discard:disabled:hover {
+  background: none;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+/* Visible to a screen reader, gone from the bar. */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 #stop {
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
   gap: 7px;
-  margin-left: auto;
   padding: 6px 11px;
   border: 1px solid var(--hairline);
   border-radius: var(--r-control);

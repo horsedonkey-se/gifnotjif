@@ -8,6 +8,7 @@ import type { CaptureOptions, Recording } from './types';
  *
  *   const rec = startRecording({ x, y, width, height, fps, outPath })
  *   await rec.stop()      // resolves once the file is closed and playable
+ *   await rec.cancel()    // throws the take away; resolves once the file is free
  *
  * Coordinates are physical pixels on the virtual desktop, already scaled for
  * DPI by the caller. Width and height must be even.
@@ -32,8 +33,14 @@ export function startRecording(options: CaptureOptions): Recording {
     spawnError = err;
   });
 
+  let stopping = false;
+  let cancelled = false;
+
   const finished = new Promise<void>((resolve, reject) => {
     child.on('close', (code) => {
+      // A cancelled recording is expected to die badly: it was killed, so it
+      // exits non-zero with a truncated file. Neither is a failure here.
+      if (cancelled) return resolve();
       if (spawnError) return reject(spawnError);
       // ffmpeg reports 255 when it quits on a 'q', which is the normal path here.
       if (code === 0 || code === 255) return resolve();
@@ -45,8 +52,6 @@ export function startRecording(options: CaptureOptions): Recording {
       reject(new Error(`recording failed (ffmpeg exited ${code})\n${tail(stderr)}`));
     });
   });
-
-  let stopping = false;
 
   async function stop(): Promise<void> {
     if (!stopping) {
@@ -64,8 +69,24 @@ export function startRecording(options: CaptureOptions): Recording {
     await finished;
   }
 
+  /**
+   * Kills ffmpeg instead of asking it to quit. A 'q' would make it write the
+   * moov atom and close the file properly, which is the wait the user is trying
+   * to skip; the file is about to be deleted anyway. Awaiting `finished` here is
+   * what makes that deletion safe: Windows holds the file open until the process
+   * is gone, so unlinking any earlier fails.
+   */
+  async function cancel(): Promise<void> {
+    if (!cancelled) {
+      cancelled = true;
+      child.kill();
+    }
+    await finished;
+  }
+
   return {
     stop,
+    cancel,
     get elapsedMs() {
       return Date.now() - startedAt;
     },
