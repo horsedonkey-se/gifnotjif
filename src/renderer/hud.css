@@ -1,0 +1,79 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  user-select: none;
+  background: transparent;
+  font: 13px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #fff;
+}
+
+#bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: rgba(20, 20, 22, 0.94);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  -webkit-app-region: drag;
+}
+
+#dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f2453d;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #dot {
+    animation: none;
+  }
+}
+
+#clock {
+  min-width: 38px;
+  font-variant-numeric: tabular-nums;
+}
+
+#stop {
+  -webkit-app-region: no-drag;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: #f2453d;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+#stop:hover {
+  background: #ff5a52;
+}
+
+#stop:disabled {
+  background: #555;
+  cursor: default;
+}
+
+#status {
+  color: #b9b9bd;
+}
+
+/* Once encoding starts there is nothing left to time or stop. */
+body.busy #dot,
+body.busy #clock,
+body.busy #stop {
+  display: none;
+}

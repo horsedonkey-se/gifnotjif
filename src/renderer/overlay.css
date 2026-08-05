@@ -1,0 +1,72 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  cursor: crosshair;
+  user-select: none;
+  background: transparent;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #fff;
+}
+
+/* The whole screen dims, except the selection, which punches a hole through
+   the dim using an outsized ring shadow. One element, no masking. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+body.dragging::before {
+  background: transparent;
+}
+
+#selection {
+  position: fixed;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+#size {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.8);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Keep the readout on screen when the selection runs off the bottom edge. */
+#selection.near-bottom #size {
+  top: auto;
+  bottom: 100%;
+  margin: 0 0 6px;
+}
+
+#hint {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+
+body.dragging #hint {
+  opacity: 0;
+}
+
+kbd {
+  padding: 1px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  font: inherit;
+}

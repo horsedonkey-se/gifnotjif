@@ -1,0 +1,31 @@
+{
+  "name": "gifnotjif",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Record a screen region and land an animated GIF on your clipboard.",
+  "main": "dist/src/main/index.js",
+  "scripts": {
+    "build": "node scripts/copy-static.mjs && tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "npm run build && electron .",
+    "doctor": "npm run build && electron dist/scripts/doctor.js",
+    "spike": "npm run build && node dist/scripts/spike.js"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "electron": "^33.2.0",
+    "typescript": "^5.7.2"
+  },
+  "build": {
+    "appId": "dev.gifnotjif.app",
+    "files": ["dist/**", "assets/**"],
+    "//": "Both must live outside app.asar: an archived binary cannot be executed, and powershell.exe cannot read an archived script.",
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**",
+      "dist/src/main/scripts/**"
+    ]
+  }
+}
