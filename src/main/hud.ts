@@ -5,15 +5,21 @@ import { getPlatform } from './platform';
 import type { Hud, Region } from './types';
 
 // The visible bar, and the transparent margin the window carries around it so
-// the bar's drop shadow has somewhere to land instead of being clipped at the
-// window edge. Must match the body padding in hud.css.
+// the bar's shadow has somewhere to land instead of being clipped at the window
+// edge. Must match the body padding in hud.css.
 //
-// The margin is hit-testable like the rest of the window, so it leaves a dead
-// border around the bar while recording. It sits outside the captured region,
-// and 14px is the least that fits the shadow without visible clipping.
-const BAR_W = 244;
-const BAR_H = 44;
-const MARGIN = 14;
+// 10px, against the 14px it needed when the shadow was a wide one: --shadow in
+// tokens.css now throws 8px at its furthest. The margin is hit-testable like the
+// rest of the window, so it leaves a dead border around the bar while recording,
+// which is why it is worth keeping honest rather than generous.
+//
+// BAR_W is not a number picked by eye. Measured, the live row needs 258px with
+// nothing to spare: 8 dot + 58 clock + 30 discard + 76 stop, 44 of padding and
+// 42 of gaps. The rest is slack, and it all lands in the auto margin before the
+// buttons, which is what keeps the row from crowding the pill's ends.
+const BAR_W = 300;
+const BAR_H = 52;
+const MARGIN = 10;
 
 const WIDTH = BAR_W + MARGIN * 2;
 const HEIGHT = BAR_H + MARGIN * 2;

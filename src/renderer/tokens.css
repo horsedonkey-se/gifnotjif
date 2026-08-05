@@ -1,28 +1,135 @@
 /* Shared look for every surface the app draws on screen. Both the overlay and
-   the HUD link this before their own stylesheet. */
+   the HUD link this before their own stylesheet.
+
+   Light is the default and dark is the override, because prefers-color-scheme
+   reports 'light' both when the machine is light and when it will not say. The
+   fallback should be a real theme rather than the absence of one.
+
+   Nothing here is wired up in the main process. Electron leaves
+   nativeTheme.themeSource at 'system', so prefers-color-scheme already follows
+   the machine, and it changes with it while the app is running.
+
+   A surface is a solid fill, a hairline border, and a short shadow. Short is the
+   point: the shadow says the panel is a separate thing sitting on the screen,
+   and stops there. A wide, soft one would go back to implying a height these
+   panels do not have, and it costs real estate, because the HUD window has to
+   carry transparent margin around the bar wide enough to hold whatever the
+   shadow throws.
+
+   The selection marks in overlay.css are the exception to all of it. They sit
+   over the user's screen rather than over one of our surfaces, so they cannot
+   borrow any of this. */
+
+/* Deliberately no `color-scheme` here. It is the usual companion to a dark
+   palette, and it cannot be used: under `color-scheme: dark` Chromium paints an
+   opaque dark canvas behind the page, which takes the transparency out of both
+   of these windows. The overlay then hides the screen it is meant to be
+   selecting from, and the recording bar becomes a black slab. Nothing is lost by
+   leaving it out, because every control here is styled by hand and neither
+   window has a scrollbar or a native widget for it to reach. */
 
 :root {
-  --panel: rgba(24, 26, 31, 0.92);
-  --hairline: rgba(255, 255, 255, 0.09);
-  --text: #f4f4f5;
-  --muted: #a1a1aa;
-  --red: #e5484d;
-  --amber: #f5a524;
+  --panel: #ffffff;
+  /* Fills for controls sitting on a panel: buttons, and the track behind the
+     overlay's segmented control. Tinted from the text colour rather than being
+     a flat grey, so they stay put when the palette moves. */
+  --inset: rgba(0, 0, 0, 0.045);
+  --inset-strong: rgba(0, 0, 0, 0.09);
 
-  --r-panel: 12px;
-  --r-control: 8px;
+  /* The outer edge of a surface, and the one thing here that must NOT be a
+     transparent black. A 14%-black hairline over white lands near #dbdbdb: a
+     hard, definite line, sitting immediately inside a short shadow that fades
+     from something much fainter. The eye reads two edges with a gap between
+     them, and the shadow looks broken rather than soft.
 
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.45);
+     Keyed to the surface instead, a few steps off the panel's own colour, the
+     border becomes the first step of the shadow rather than a competing line,
+     and the two run together into one transition. Opaque, not alpha, so it
+     cannot darken further by stacking with whatever is behind the window. */
+  --edge: #e7e9ee;
+
+  /* Rules drawn *on* a panel rather than around it, like the divider in the
+     overlay's hint bar. Nothing is fading next to these, so they keep the
+     contrast the edges gave up. */
+  --divider: rgba(16, 24, 40, 0.14);
+
+  --text: #18181b;
+  --muted: #52525b;
+
+  /* The segmented control in the overlay: a tinted track with the selected tab
+     riding on top of it as a raised pill. --track is the only thing holding the
+     tint, so giving this control a colour is a one-line change.
+
+     The lift is the one shadow left in the app. Flat is right for a panel, which
+     has a border to describe its edge, and wrong for this pill, which has none:
+     without it the selected tab reads as a hole in the track rather than as
+     something sitting on it. */
+  --track: #eceff3;
+  /* The panel's own colour, in both themes. The track sinks below the surface
+     and the selected tab comes back up to it, so the tab reads as the panel
+     showing through rather than as a shape painted on top. Written as var()
+     rather than repeated, so it cannot drift from --panel: custom properties
+     resolve where they are used, which is where the dark override applies. */
+  --track-pill: var(--panel);
+  --lift: 0 1px 2px rgba(16, 24, 40, 0.12);
+
+  /* Two short layers: a contact shadow holding the panel to the surface, and one
+     step of softness above it. Neither travels far. MARGIN in src/main/hud.ts
+     has to be wide enough to hold the larger of them. */
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.14), 0 2px 6px rgba(16, 24, 40, 0.12);
+
+  /* Darker than the dark-mode pair. These two carry meaning, recording and a
+     take about to end itself, so they have to hold their contrast on white. */
+  --red: #d32f2f;
+  --amber: #a16207;
+
+  --r-panel: 14px;
+  --r-control: 9px;
 
   --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
     sans-serif;
 }
 
-/* Everything that reads as a floating surface: the HUD bar, the size readout,
-   the hint. Sharing one class is what makes them look like the same object. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --panel: #17191d;
+    --inset: rgba(255, 255, 255, 0.06);
+    --inset-strong: rgba(255, 255, 255, 0.12);
+    /* Same idea, and it does more work here. A dark panel casts a shadow almost
+       nothing can see, so this edge is what separates the panel from the screen
+       behind it: a step or two lighter than the panel, which reads as a rim
+       catching light rather than as an outline drawn around it. */
+    --edge: #262a31;
+    --divider: rgba(255, 255, 255, 0.14);
+    --text: #f4f4f5;
+    --muted: #a1a1aa;
+    --red: #e5484d;
+    --amber: #f5a524;
+
+    /* Deeper than the light theme's track. The selected tab is the panel colour
+       in both themes, so all of the separation between tab and track comes from
+       how far the track sinks below it. Light gets a shadow to help; here a
+       shadow does nothing on a surface this dark, so the step carries it alone
+       and has to be bigger. */
+    --track: rgba(0, 0, 0, 0.42);
+    --lift: none;
+
+    /* Same two layers, harder. A shadow that reads on a light desktop is
+       invisible cast by a dark panel, and these panels float over whatever the
+       user happens to have on screen rather than over a page we control. */
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* Everything that reads as a floating surface: the recording bar, the selection
+   bar, the size readout. Sharing one class is what makes them look like the same
+   object, and it is the only thing keeping them that way: the selection bar once
+   carried its own copy of these three properties, and quietly missed out when the
+   shadow came back here. Give a surface this class and override the shape if it
+   needs a different one. Do not restate the fill, border or shadow. */
 .panel {
   background: var(--panel);
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--edge);
   border-radius: var(--r-panel);
   box-shadow: var(--shadow);
 }

@@ -30,6 +30,16 @@ body.picking.over::before {
   background: transparent;
 }
 
+/* The selection marks below are the one place that ignores the theme, and they
+   have to. Everything else in this app draws on a surface we control, so it can
+   follow the machine. These sit directly on the user's screen, over content that
+   could be any colour, so they carry their own contrast: a white edge with a
+   dark hairline just inside it, and brackets with a dark halo. A light-theme
+   version of them would simply disappear against pale content.
+
+   The dim behind them stays dark in both themes for the same reason. A pale
+   scrim over a pale desktop says nothing. */
+
 /* The edge holds back so the corner brackets can be the crisp part. */
 #selection {
   position: fixed;
@@ -90,12 +100,11 @@ body.picking.over::before {
   position: absolute;
   top: 100%;
   left: 0;
-  margin-top: 8px;
-  padding: 5px 9px;
-  background: var(--panel);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-control);
-  box-shadow: var(--shadow);
+  margin-top: 10px;
+  padding: 7px 12px;
+  /* Fill, border and shadow come from .panel in tokens.css; only the shape is
+     particular to this one. */
+  border-radius: 999px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -110,17 +119,24 @@ body.picking.over::before {
 
 #hint {
   position: fixed;
-  top: 28px;
+  top: 32px;
   left: 50%;
   transform: translateX(-50%);
+  /* Above #selection, which comes later in the document and whose 100vmax ring
+     shadow would otherwise dim this bar along with the rest of the screen. In
+     region mode the bar fades out during a drag so it never showed; in window
+     mode it stays up, and a dimmed white panel just looks grubby. */
+  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 14px 8px 8px;
-  background: var(--panel);
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
+  gap: 18px;
+  /* Even inset on the three sides the tab track touches, so the track's pill
+     nests concentrically inside this one. The right side carries text rather
+     than a control and needs more, because a pill's end curves away from it. */
+  padding: 10px 26px 10px 10px;
+  /* A pill, like the recording bar and the track inside it. Overrides the
+     .panel radius; fill, border and shadow all come from .panel. */
+  border-radius: 999px;
   color: var(--muted);
   white-space: nowrap;
   /* The bar itself is inert, but the two mode buttons inside it are not. */
@@ -130,20 +146,24 @@ body.picking.over::before {
 
 /* A segmented control: both ways of selecting, side by side, so neither is a
    mode the user has to already know about. */
+/* A tinted track, fully rounded, with no border of its own: the tint is what
+   separates it from the panel, and a border on top of that would only add a
+   second edge saying the same thing. */
 #modes {
   display: flex;
   gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.25);
+  padding: 5px;
+  border-radius: 999px;
+  background: var(--track);
   pointer-events: auto;
 }
 
 .mode {
-  padding: 5px 12px;
+  padding: 8px 22px;
   border: 0;
-  border-radius: 6px;
+  /* Larger than any height this can take, which is how a pill stays a pill
+     without anyone having to keep a radius and a height in agreement. */
+  border-radius: 999px;
   background: none;
   color: var(--muted);
   font: inherit;
@@ -153,11 +173,12 @@ body.picking.over::before {
 
 .mode:hover:not(:disabled) {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
 }
 
+/* The selected tab rides on the track rather than sitting in it. */
 .mode[aria-pressed="true"] {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--track-pill);
+  box-shadow: var(--lift);
   color: var(--text);
 }
 
@@ -170,8 +191,8 @@ body.picking.over::before {
 
 .sep {
   width: 1px;
-  height: 16px;
-  background: var(--hairline);
+  height: 18px;
+  background: var(--divider);
 }
 
 /* Nothing is being dragged in window mode, so the crosshair would be a lie. */
@@ -196,11 +217,10 @@ body.dragging #hint {
 }
 
 kbd {
-  padding: 2px 6px;
-  border: 1px solid var(--hairline);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  padding: 3px 7px;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  background: var(--inset);
   color: var(--text);
   font: inherit;
   font-size: 12px;

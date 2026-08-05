@@ -10,17 +10,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* The window is larger than the bar so the shadow has somewhere to land. See
-   the note in src/main/hud.ts; MARGIN there and this padding must agree. */
+/* Transparent inset around the bar, wide enough to hold its shadow. See the
+   note in src/main/hud.ts; MARGIN there and this padding must agree. */
 body {
   box-sizing: border-box;
-  padding: 14px;
+  padding: 10px;
 }
 
+/* A pill, and everything inside it is one too. The radius is larger than any
+   height the bar can take, so it stays a pill without a radius and a height
+   having to be kept in agreement. Overrides the .panel radius from tokens.css.
+
+   The padding clears the curve: at the ends of a pill the usable height falls
+   away, so content starting flush against them would sit in the pinch. */
 #bar {
   position: relative;
   height: 100%;
-  padding: 0 12px;
+  padding: 0 22px;
+  border-radius: 999px;
   box-sizing: border-box;
   -webkit-app-region: drag;
   animation: rise 140ms ease-out;
@@ -40,7 +47,7 @@ body {
   inset: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   padding: inherit;
   transition: opacity 160ms ease;
 }
@@ -97,8 +104,10 @@ body.busy #busy {
 
 #clock {
   /* Wide enough for "0:30 left", the longest thing this ever says, so neither
-     the roll-over nor the switch to counting down shuffles the row. */
-  min-width: 74px;
+     the roll-over nor the switch to counting down shuffles the row. Measured at
+     52px in this font; the rest is there so a wider system font does not have
+     to be exactly right to avoid a jump. */
+  min-width: 58px;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -117,12 +126,16 @@ body.warn #clock {
   display: grid;
   place-items: center;
   margin-left: auto;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--r-control);
-  background: none;
+  /* Without this, flex shrinks the button whenever the row is tight, and a
+     circle quietly becomes an ellipse. */
+  flex: none;
+  border: 1px solid var(--edge);
+  /* Square, so a pill radius makes it a circle. */
+  border-radius: 999px;
+  background: var(--inset);
   color: var(--muted);
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
@@ -138,8 +151,7 @@ body.warn #clock {
 }
 
 #discard:hover {
-  border-color: var(--hairline);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--inset-strong);
   color: var(--text);
 }
 
@@ -154,8 +166,7 @@ body.warn #clock {
 }
 
 #discard:disabled:hover {
-  background: none;
-  border-color: transparent;
+  background: var(--inset);
   color: var(--muted);
 }
 
@@ -173,11 +184,12 @@ body.warn #clock {
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 11px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-control);
-  background: rgba(255, 255, 255, 0.06);
+  gap: 8px;
+  flex: none;
+  padding: 8px 16px;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: var(--inset);
   color: var(--text);
   font: inherit;
   cursor: pointer;
@@ -198,6 +210,8 @@ body.warn #clock {
   border-color: var(--red);
 }
 
+/* The button fills with red on hover, so the glyph has to leave it. White reads
+   on that fill in both themes, which is why it is not a token. */
 #stop:hover .glyph {
   background: #fff;
 }
@@ -213,8 +227,8 @@ body.warn #clock {
 }
 
 #stop:disabled:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--hairline);
+  background: var(--inset);
+  border-color: var(--edge);
 }
 
 #stop:disabled:hover .glyph {
@@ -225,16 +239,18 @@ body.warn #clock {
 
 #spinner {
   display: flex;
-  gap: 3px;
+  gap: 4px;
   flex: none;
 }
 
-/* Three squares handing brightness along, the tray icon's cascade in motion. */
+/* Three squares handing brightness along, the tray icon's cascade in motion.
+   The animation moves opacity, so on a light theme this has to be the dark ink
+   rather than the white it was when there was only one theme. */
 #spinner i {
   width: 6px;
   height: 6px;
   border-radius: 2px;
-  background: #fff;
+  background: var(--text);
   animation: cascade 1.2s ease-in-out infinite;
 }
 
