@@ -1,0 +1,74 @@
+# Packaging config. It lives here rather than in package.json because
+# electron-builder validates that field against a schema that rejects unknown
+# keys, comments included, and the reasoning below is worth more than the
+# convenience of one less file.
+#
+# See RELEASING.md for how this gets run.
+
+appId: dev.gifnotjif.app
+productName: gifnotjif
+copyright: Copyright (C) 2026 Hargaaya Idris. GPL-3.0-or-later.
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**
+  - assets/**
+
+# Both must live outside app.asar: an archived binary cannot be executed, and
+# powershell.exe cannot read an archived script. src/main/paths.ts rewrites the
+# paths to match.
+asarUnpack:
+  - node_modules/ffmpeg-static/**
+  - dist/src/main/scripts/**
+
+# No target below names an architecture, so electron-builder packages for the
+# machine it is running on. That is the only architecture whose ffmpeg binary
+# npm install fetched, because ffmpeg-static downloads exactly one. CI overrides
+# the two together and nowhere else.
+
+win:
+  target: [nsis]
+  icon: assets/logo.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: gifnotjif
+  # The binaries carry a GPL ffmpeg, so the installer shows the license.
+  license: LICENSE
+
+mac:
+  target: [dmg]
+  icon: assets/logo.png
+  category: public.app-category.utilities
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  # entitlementsInherit is the one that matters here: ffmpeg is a child process,
+  # and without the inherited entitlement a hardened runtime refuses to run it.
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    # A tray app, matching app.dock.hide() in src/main/index.ts. Without this the
+    # dock icon appears for a moment on launch before the code can hide it.
+    LSUIElement: true
+
+dmg:
+  # electron-updater metadata, which an unsigned app cannot verify anyway.
+  writeUpdateInfo: false
+
+linux:
+  target: [AppImage]
+  icon: assets/logo.png
+  category: Utility
+  synopsis: Record a screen region straight to an animated GIF on your clipboard.
+  # The clipboard step needs xclip, which an AppImage cannot declare. The app
+  # reports that after encoding, when the file on disk is still a usable answer.
+
+publish:
+  - provider: github
+    owner: horsedonkey-se
+    repo: gifnotjif
+    releaseType: draft

@@ -30,7 +30,9 @@
     "typecheck": "tsc --noEmit",
     "start": "npm run build && electron .",
     "doctor": "npm run build && electron dist/scripts/doctor.js",
-    "spike": "npm run build && node dist/scripts/spike.js"
+    "spike": "npm run build && node dist/scripts/spike.js",
+    "dist": "npm run build && electron-builder --publish never",
+    "release": "npm run build && electron-builder --publish always"
   },
   "dependencies": {
     "ffmpeg-static": "^5.2.0"
@@ -38,15 +40,7 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "electron": "^33.2.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.7.2"
-  },
-  "build": {
-    "appId": "dev.gifnotjif.app",
-    "files": ["dist/**", "assets/**"],
-    "//": "Both must live outside app.asar: an archived binary cannot be executed, and powershell.exe cannot read an archived script.",
-    "asarUnpack": [
-      "node_modules/ffmpeg-static/**",
-      "dist/src/main/scripts/**"
-    ]
   }
 }

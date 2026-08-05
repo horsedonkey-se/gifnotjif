@@ -9,7 +9,17 @@ Windows works today. macOS and Linux on X11 have adapters that have not yet been
 run on real hardware. Wayland is refused outright. See
 [Platforms](#platforms).
 
-## Running it
+## Installing it
+
+Grab an installer from [Releases](https://github.com/horsedonkey-se/gifnotjif/releases):
+`.exe` for Windows, `.dmg` for macOS, `.AppImage` for Linux.
+
+They are not code signed, so both Windows and macOS will complain the first time.
+Windows: More info, then Run anyway. macOS: right-click the app, Open, Open.
+Linux needs `chmod +x` on the AppImage and `xclip` installed for the clipboard
+step to work.
+
+## Running from source
 
 ```
 npm install

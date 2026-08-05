@@ -1,0 +1,75 @@
+name: Release
+
+# Push a tag, get a draft release with an installer per platform attached.
+# Nothing is published to users until you press the button on GitHub.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            arch: x64
+            flags: --win --x64
+          - name: macos-arm64
+            os: macos-latest
+            arch: arm64
+            flags: --mac --arm64
+          - name: macos-x64
+            os: macos-latest
+            arch: x64
+            flags: --mac --x64
+          - name: linux-x64
+            os: ubuntu-latest
+            arch: x64
+            flags: --linux --x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # The tag names the release; package.json names the file inside it.
+      # Catch them disagreeing here rather than in a shipped installer.
+      - name: Check the tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          tag="${GITHUB_REF#refs/tags/v}"
+          pkg="$(node -p "require('./package.json').version")"
+          test "$tag" = "$pkg" || { echo "tag v$tag != package.json $pkg"; exit 1; }
+
+      # ffmpeg-static fetches exactly one binary, chosen from npm_config_arch and
+      # the host platform. Setting it here is what makes the macos-latest runner,
+      # which is arm64, produce a working Intel build.
+      - name: Install
+        run: npm ci
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+
+      # Compile first: electron-builder packages dist/, it does not create it.
+      - name: Compile
+        run: npm run build
+
+      - name: Package and publish
+        run: npx electron-builder ${{ matrix.flags }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No Developer ID certificate, so skip the signing step rather than
+          # letting it hunt the keychain and fail. See RELEASING.md for what
+          # this costs the people installing it.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
