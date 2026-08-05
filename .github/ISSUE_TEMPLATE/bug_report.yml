@@ -1,0 +1,42 @@
+name: Bug report
+description: Something did not work
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - macOS
+        - Linux (X11)
+        - Linux (Wayland)
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `npm run doctor`
+      description: >
+        This prints the displays, scaling, ffmpeg path, and platform support the
+        app sees. Most capture bugs are visible here. Paste it as is.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: stage
+    attributes:
+      label: Where it broke
+      description: >
+        Selecting the region, recording, encoding, or pasting? If pasting, say
+        which app you pasted into.

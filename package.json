@@ -3,6 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "description": "Record a screen region and land an animated GIF on your clipboard.",
+  "license": "GPL-3.0-or-later",
+  "author": "Hargaaya Idris",
+  "homepage": "https://github.com/horsedonkey-se/gifnotjif#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/horsedonkey-se/gifnotjif.git"
+  },
+  "bugs": {
+    "url": "https://github.com/horsedonkey-se/gifnotjif/issues"
+  },
+  "keywords": [
+    "gif",
+    "screen-recorder",
+    "screen-capture",
+    "clipboard",
+    "electron",
+    "ffmpeg"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "main": "dist/src/main/index.js",
   "scripts": {
     "build": "node scripts/copy-static.mjs && tsc",

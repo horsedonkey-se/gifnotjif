@@ -127,3 +127,16 @@ Known rough edges, all commented where they live:
 - macOS and Linux X11 have never been run. `npm run doctor`, then
   `npm run spike`, then a real recording on a second display is the order that
   finds problems fastest.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). The most useful thing anyone can do
+right now is run it on macOS or Linux X11 and report what happens, since neither
+adapter has ever touched real hardware.
+
+## License
+
+GPL-3.0-or-later. Copyright (C) 2026 Hargaaya Idris. See [LICENSE](LICENSE).
+
+The license follows the dependency: `ffmpeg-static` ships a GPL-3.0 ffmpeg
+binary, which this app runs and any packaged build would bundle.
