@@ -226,6 +226,11 @@ void app.whenReady().then(async () => {
   );
   setTrayState('idle');
 
+  // Left click starts and stops a recording; the menu stays on right click.
+  // On macOS a context menu swallows the left click, so the menu item is the
+  // only way in there.
+  tray.on('click', () => void toggle());
+
   if (!globalShortcut.register(config.hotkey, () => void toggle())) {
     dialog.showErrorBox(
       'Hotkey unavailable',
