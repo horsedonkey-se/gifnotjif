@@ -4,7 +4,12 @@
 //   npm run spike
 //   npm run spike -- --x 100 --y 100 --w 640 --h 480 --secs 8 --fps 15
 //
-// Then paste into Slack, Discord, a GitHub comment box, and Explorer.
+// Then paste into Slack, Discord, a GitHub comment box, and a file manager.
+//
+// There is no Electron here and so no screen module, which means no display is
+// passed to the capture. On macOS that takes the primary-display fallback in
+// platform/darwin.ts, so the coordinates are read against the primary display
+// whatever the arguments say.
 
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -42,7 +47,11 @@ async function main(): Promise<void> {
   const secs = opts.secs ?? 5;
 
   const platform = getPlatform();
-  const support = platform.isSupported();
+  const canCapture = platform.captureSupport();
+  if (!canCapture.ok) {
+    throw new Error(canCapture.reason);
+  }
+  const support = platform.clipboardSupport();
 
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gifnotjif-'));
   const videoPath = path.join(dir, 'capture.mp4');
@@ -73,9 +82,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  await platform.copyGifToClipboard(gifPath);
+  await platform.copyGifToClipboard(gifPath, { mimeType: DEFAULTS.clipboardMimeType });
   console.log(`\ncopied to clipboard\nfile kept at ${gifPath}`);
-  console.log('\nnow paste into Slack, Discord, a GitHub comment, and Explorer.');
+  console.log('\nnow paste into Slack, Discord, a GitHub comment, and a file manager.');
 }
 
 async function sizeOf(file: string): Promise<string> {

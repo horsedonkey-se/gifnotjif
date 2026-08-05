@@ -1,10 +1,15 @@
 import path from 'node:path';
 import { BrowserWindow, ipcMain, screen, type Display, type IpcMainEvent } from 'electron';
 
-import type { Region } from './types';
+import type { CaptureDisplay, Region } from './types';
 
 /** gdigrab and libx264 both want even dimensions. */
 export const even = (n: number): number => Math.max(2, Math.floor(n / 2) * 2);
+
+/** A region, plus the display it was drawn on, which avfoundation needs. */
+export interface Selection extends Region {
+  display: CaptureDisplay;
+}
 
 /**
  * Dims every display and lets the user drag out a rectangle.
@@ -12,12 +17,12 @@ export const even = (n: number): number => Math.max(2, Math.floor(n / 2) * 2);
  * Resolves with a region in *physical* screen pixels, ready to hand to
  * ffmpeg, or null if the user cancelled.
  */
-export function selectRegion(): Promise<Region | null> {
+export function selectRegion(): Promise<Selection | null> {
   return new Promise((resolve) => {
     const windows = new Map<BrowserWindow, Display>();
     let settled = false;
 
-    function finish(result: Region | null): void {
+    function finish(result: Selection | null): void {
       if (settled) return;
       settled = true;
       ipcMain.removeListener('overlay:confirm', onConfirm);
@@ -45,11 +50,29 @@ export function selectRegion(): Promise<Region | null> {
       };
       const physical = screen.dipToScreenRect(win, dip);
 
+      // Carry the display through with the region. gdigrab and x11grab read the
+      // whole desktop and never look at it; avfoundation records one display at
+      // a time and cannot work without it. The same conversion is used for its
+      // bounds, so both rectangles are in the same units.
+      const bounds = screen.dipToScreenRect(win, display.bounds);
+
       finish({
         x: Math.round(physical.x),
         y: Math.round(physical.y),
         width: even(physical.width),
         height: even(physical.height),
+        display: {
+          id: display.id,
+          // Unplugged mid-selection gives -1; the primary is a better guess
+          // than a negative index.
+          index: Math.max(0, screen.getAllDisplays().findIndex((d) => d.id === display.id)),
+          bounds: {
+            x: Math.round(bounds.x),
+            y: Math.round(bounds.y),
+            width: Math.round(bounds.width),
+            height: Math.round(bounds.height),
+          },
+        },
       });
     }
 

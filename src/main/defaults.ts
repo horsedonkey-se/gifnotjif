@@ -9,6 +9,7 @@ export interface Settings {
   dither: string;
   drawMouse: boolean;
   keepForDays: number;
+  clipboardMimeType: string;
 }
 
 export const DEFAULTS: Settings = {
@@ -26,4 +27,9 @@ export const DEFAULTS: Settings = {
   // Recordings older than this are pruned at startup. They cannot be deleted
   // right after copying: the clipboard holds a path, not the bytes.
   keepForDays: 7,
+  // Linux only, and ignored everywhere else. xclip and wl-copy each advertise
+  // one type per invocation, so this picks which one. text/uri-list is the
+  // paste-as-file type browsers, chat apps and file managers read, and it is
+  // what makes the GIF animate rather than arrive as a still.
+  clipboardMimeType: 'text/uri-list',
 };

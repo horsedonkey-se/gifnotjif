@@ -144,7 +144,38 @@ async function toggle(): Promise<void> {
   return beginRecording();
 }
 
+/**
+ * Explains why this machine cannot record, and on macOS offers the way to fix
+ * it. Wayland and a missing DISPLAY have no button worth showing: the answer is
+ * to log into a different session.
+ */
+async function refuseCapture(reason: string): Promise<void> {
+  const canOpenSettings = process.platform === 'darwin';
+  const { response } = await dialog.showMessageBox({
+    type: 'warning',
+    title: 'Cannot record',
+    message: 'gifnotjif cannot record on this machine.',
+    detail: reason,
+    buttons: canOpenSettings ? ['Open Settings', 'Close'] : ['Close'],
+    defaultId: 0,
+    cancelId: canOpenSettings ? 1 : 0,
+  });
+  if (canOpenSettings && response === 0) {
+    await shell.openExternal(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+    );
+  }
+}
+
 async function beginRecording(): Promise<void> {
+  // Asked before the overlay opens. A platform that cannot capture would
+  // otherwise take the user through a selection to hand back black frames.
+  const canCapture = getPlatform().captureSupport();
+  if (!canCapture.ok) {
+    await refuseCapture(canCapture.reason);
+    return setTrayState('idle');
+  }
+
   setTrayState('selecting');
 
   const region = await selectRegion();
@@ -205,12 +236,13 @@ async function stopRecording(): Promise<void> {
     });
 
     const platform = getPlatform();
-    const support = platform.isSupported();
+    const support = platform.clipboardSupport();
     if (support.ok) {
       hud.setStatus('Copying...');
-      await platform.copyGifToClipboard(gifPath);
+      await platform.copyGifToClipboard(gifPath, { mimeType: config.clipboardMimeType });
       notify('Copied to clipboard', `${await sizeOf(gifPath)} - ready to paste`);
     } else {
+      // The recording is not wasted: the file on disk is the deliverable.
       notify('Saved to disk', `${support.reason} ${gifPath}`);
     }
 

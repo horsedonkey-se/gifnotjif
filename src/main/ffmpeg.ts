@@ -1,18 +1,15 @@
 import { spawn } from 'node:child_process';
-import path from 'node:path';
 import ffmpegStatic from 'ffmpeg-static';
+
+import { unpacked } from './paths';
 
 if (!ffmpegStatic) {
   throw new Error('ffmpeg-static did not resolve a binary for this platform');
 }
 
 // ffmpeg-static exports the path to the bundled binary. Inside a packaged
-// Electron app that path lands in app.asar, which cannot be executed, so point
-// it at the unpacked copy instead. Harmless when running from source.
-export const ffmpegPath: string = ffmpegStatic.replace(
-  `app.asar${path.sep}`,
-  `app.asar.unpacked${path.sep}`,
-);
+// Electron app that path lands in app.asar, which cannot be executed.
+export const ffmpegPath: string = unpacked(ffmpegStatic);
 
 /**
  * Runs ffmpeg to completion and resolves with its stderr, which is where

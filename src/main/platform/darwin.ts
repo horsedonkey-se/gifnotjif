@@ -1,39 +1,148 @@
-// STUB. Written from research, never run. Do not trust it until someone has
-// executed it on a Mac and pasted the result into Slack.
+// macOS. Written against the docs and the ffmpeg source, then left for the
+// verification steps in the README to confirm.
 //
-// Capture: avfoundation lists screens as numbered devices, so the input is
-// `-f avfoundation -i "<screenIndex>:none"`. It cannot crop at the source the
-// way gdigrab can, so the region has to come out of a crop filter instead.
-// First run triggers the Screen Recording permission prompt, and the app must
-// be restarted after the user grants it.
+// Capture is avfoundation, which differs from gdigrab in two ways that matter.
+// It records one display at a time, addressed by a device number that is not
+// the display number, so the device list has to be read out of ffmpeg. And it
+// cannot crop at the source, so the region comes out of a crop filter, in that
+// display's own coordinates rather than the virtual desktop's.
 //
-// Clipboard: NSPasteboard, driven either from JXA via `osascript -l JavaScript`
-// or a small compiled Swift helper. Write both the file URL (so chat apps
-// upload and animate it) and the raw bytes under `com.compuserve.gif`.
-//
+// Clipboard is NSPasteboard, driven through JXA. See scripts/copy-gif.jxa.js.
 // Known dead end: `osascript -e 'set the clipboard to (read (POSIX file "x.gif")
 // as «class GIFf»)'` silently copies only the first frame. Do not use it.
 
+import path from 'node:path';
+import { execFile, execFileSync } from 'node:child_process';
+
+import { ffmpegPath } from '../ffmpeg';
+import { unpacked } from '../paths';
 import type { CaptureOptions, Support } from '../types';
 
-interface DarwinCaptureOptions extends CaptureOptions {
-  screenIndex?: number;
+// osascript cannot read a script out of app.asar, exactly as powershell.exe
+// cannot. See asarUnpack in the build config.
+const COPY_SCRIPT = unpacked(path.join(__dirname, '..', 'scripts', 'copy-gif.jxa.js'));
+
+const NO_PERMISSION =
+  'macOS has not granted Screen Recording permission. Open System Settings > ' +
+  'Privacy & Security > Screen Recording, switch gifnotjif on, then restart it.';
+
+/**
+ * The Screen Recording permission, or null when there is no Electron to ask.
+ *
+ * The import is deliberately lazy. platform/index.ts imports all three adapters
+ * so the compiler can check them, and scripts/spike.ts runs the same modules
+ * under plain node, where a top-level `electron` import would fail on every
+ * platform including Windows.
+ */
+function screenAccess(): string | null {
+  try {
+    const electron = require('electron') as typeof import('electron');
+    return electron.systemPreferences.getMediaAccessStatus('screen');
+  } catch {
+    return null;
+  }
 }
 
-const NOT_IMPLEMENTED =
-  'macOS support is not implemented yet. The GIF was saved to disk instead.';
+export function captureSupport(): Support {
+  const status = screenAccess();
+  // 'not-determined' is the first run. Recording is what raises the system
+  // prompt, so refusing here would mean the user never got asked.
+  if (status === 'denied' || status === 'restricted') {
+    return { ok: false, reason: NO_PERMISSION };
+  }
+  return { ok: true };
+}
 
-export function isSupported(): Support {
-  return { ok: false, reason: NOT_IMPLEMENTED };
+/** osascript ships with the OS, so there is nothing here that can be missing. */
+export function clipboardSupport(): Support {
+  return { ok: true };
 }
 
 /**
- * setContentProtection sets NSWindowSharingNone here, which should keep the
- * window out of an avfoundation screen capture. Nobody has run it, so claim
- * nothing and let the recording bar place itself outside the region instead.
+ * setContentProtection sets NSWindowSharingNone, which is documented for window
+ * sharing and says nothing about a whole-display grab. So claim nothing, and
+ * let the recording bar place itself outside the region instead.
+ *
+ * `npm run doctor -- --protection` measures the real answer. If it reports that
+ * the window behind came through, this may return true.
  */
 export function canHideFromCapture(): boolean {
   return false;
+}
+
+/**
+ * avfoundation device numbers for the screens, in the order ffmpeg lists them.
+ *
+ * Cached for the life of the process: the list costs an ffmpeg run of roughly
+ * 200ms, and displays do not come and go often enough to pay that on every
+ * recording.
+ */
+let screenDevices: number[] | null = null;
+
+/**
+ * Reads the device list out of ffmpeg.
+ *
+ *   ffmpeg -f avfoundation -list_devices true -i ""
+ *
+ * always exits non-zero, because listing devices is not a job it can finish,
+ * and writes the list to stderr:
+ *
+ *   [AVFoundation indev @ 0x...] [0] FaceTime HD Camera
+ *   [AVFoundation indev @ 0x...] [1] Capture screen 0
+ *
+ * Cameras are numbered first, so the screens rarely start at 0. Synchronous
+ * because captureArgs is, and it only ever runs once.
+ */
+function listScreenDevices(): number[] {
+  if (screenDevices) return screenDevices;
+
+  let output = '';
+  try {
+    output = execFileSync(ffmpegPath, ['-f', 'avfoundation', '-list_devices', 'true', '-i', ''], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'ignore', 'pipe'],
+      // This runs on the main process while the user is holding a hotkey, so
+      // it must not be able to hang the app. An empty list is survivable.
+      timeout: 5000,
+    });
+  } catch (err) {
+    // The expected path: a non-zero exit with the list on stderr.
+    const { stderr } = err as { stderr?: string | Buffer };
+    output = stderr ? String(stderr) : '';
+  }
+
+  const found: number[] = [];
+  for (const line of output.split(/\r?\n/)) {
+    const match = /\[(\d+)\]\s+Capture screen \d+/.exec(line);
+    if (match?.[1]) found.push(Number(match[1]));
+  }
+
+  // Only cache a real answer. An empty list means ffmpeg failed to run or the
+  // output changed shape, and caching that would make one bad moment permanent.
+  if (found.length) screenDevices = found;
+  return found;
+}
+
+/** The mapping as doctor prints it, so a wrong device can be seen rather than guessed at. */
+export function describeDevices(): string {
+  const devices = listScreenDevices();
+  return devices.length
+    ? devices.map((device, i) => `display ${i} -> device ${device}`).join(', ')
+    : 'none: ffmpeg listed no capture screens';
+}
+
+/**
+ * The avfoundation device for a display, by its position in the screen list.
+ *
+ * This is the weak joint of the port. ffmpeg lists screens in CGDirectDisplayID
+ * order and Electron enumerates them the same way, but nothing promises the two
+ * agree, so `npm run doctor` prints the mapping for checking. Falls back to the
+ * first screen device rather than failing: recording the wrong screen is at
+ * least visibly wrong, where an exception mid-hotkey is just baffling.
+ */
+function deviceFor(index: number): number {
+  const devices = listScreenDevices();
+  return devices[index] ?? devices[0] ?? 0;
 }
 
 export function captureArgs({
@@ -43,18 +152,30 @@ export function captureArgs({
   height,
   fps,
   outPath,
-  screenIndex = 1,
-}: DarwinCaptureOptions): string[] {
+  drawMouse = true,
+  display,
+}: CaptureOptions): string[] {
+  // avfoundation hands back one display in its own coordinates, so the crop is
+  // measured from that display's corner rather than the virtual desktop's.
+  // Without a display, assume the primary one sitting at the origin.
+  const originX = display ? display.bounds.x : 0;
+  const originY = display ? display.bounds.y : 0;
+
   return [
     // See the comment in win32.ts: without this, ffmpeg probes for megabytes
     // before it starts encoding and short recordings come back empty.
     '-probesize', '32',
     '-analyzeduration', '0',
     '-f', 'avfoundation',
-    '-capture_cursor', '1',
+    '-capture_cursor', drawMouse ? '1' : '0',
+    // The click halo is an artefact of the recording, not of the desktop.
+    '-capture_mouse_clicks', '0',
     '-framerate', String(fps),
-    '-i', `${screenIndex}:none`,
-    '-vf', `crop=${width}:${height}:${x}:${y}`,
+    // ":none" is the audio device. There is no sound in a GIF.
+    '-i', `${deviceFor(display ? display.index : 0)}:none`,
+    '-vf', `crop=${width}:${height}:${x - originX}:${y - originY}`,
+    // Lossless 4:4:4 intermediate, as on Windows: chroma subsampling would
+    // smear the edges of coloured text before the GIF palette ever saw them.
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
     '-qp', '0',
@@ -63,6 +184,17 @@ export function captureArgs({
   ];
 }
 
-export function copyGifToClipboard(): Promise<never> {
-  return Promise.reject(new Error(NOT_IMPLEMENTED));
+/**
+ * The macOS pasteboard is held by the window server, so unlike xclip on Linux
+ * nothing has to stay resident here: osascript writes and exits.
+ */
+export function copyGifToClipboard(gifPath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile('osascript', ['-l', 'JavaScript', COPY_SCRIPT, gifPath], (err, stdout, stderr) => {
+      if (err) {
+        return reject(new Error(`clipboard copy failed: ${(stderr || err.message).trim()}`));
+      }
+      resolve(stdout.trim());
+    });
+  });
 }

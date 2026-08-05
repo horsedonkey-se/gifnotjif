@@ -1,12 +1,15 @@
 // Everything platform-specific lives behind this one interface:
 //
-//   isSupported()          -> { ok, reason? }
-//   captureArgs(options)   -> string[]  ffmpeg arguments
-//   copyGifToClipboard(p)  -> Promise<void>
-//   canHideFromCapture()   -> boolean   can a window be kept out of the capture
+//   captureSupport()       -> { ok, reason? }  can this machine record at all
+//   clipboardSupport()     -> { ok, reason? }  can a GIF go on the clipboard
+//   captureArgs(options)   -> string[]         ffmpeg arguments
+//   copyGifToClipboard(p)  -> Promise<unknown>
+//   canHideFromCapture()   -> boolean          can a window be kept out of the capture
 //
-// Adapters that are not implemented still return usable captureArgs and a
-// truthful isSupported(), so the caller can fall back to saving the file.
+// The two support questions are separate because they fail separately. A
+// missing clipboard tool still leaves the user a GIF on disk, so recording goes
+// ahead and the file becomes the deliverable. A platform that cannot capture
+// has nothing to offer, so it is refused before the overlay ever opens.
 
 import * as darwin from './darwin';
 import * as linux from './linux';
@@ -23,7 +26,8 @@ export function getPlatform(name: string = process.platform): PlatformAdapter {
 
   const unsupported = `${name} is not a supported platform`;
   return {
-    isSupported: () => ({ ok: false, reason: unsupported }),
+    captureSupport: () => ({ ok: false, reason: unsupported }),
+    clipboardSupport: () => ({ ok: false, reason: unsupported }),
     captureArgs: () => {
       throw new Error(unsupported);
     },

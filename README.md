@@ -5,8 +5,9 @@
 Press a hotkey, drag a box over part of your screen, press stop. The GIF lands
 on your clipboard, ready to paste into Slack, Discord, or a GitHub comment.
 
-Windows works today. macOS and Linux fall back to saving the file to disk until
-their adapters are finished.
+Windows works today. macOS and Linux on X11 have adapters that have not yet been
+run on real hardware. Wayland is refused outright. See
+[Platforms](#platforms).
 
 ## Running it
 
@@ -58,10 +59,13 @@ something: the file drop, the raw GIF bytes, and the path as text. A bitmap is
 deliberately **not** offered, because apps that see one tend to prefer it and
 paste a still.
 
-Because `CF_HDROP` is a path and not the bytes, **the GIF cannot be deleted
-after copying** or the paste breaks. Recordings are kept in the app's user data
-folder and swept after `keepForDays`. Only the intermediate mp4 is deleted
-straight away.
+macOS does the same through `src/main/scripts/copy-gif.jxa.js`. Linux cannot:
+`xclip` and `wl-copy` serve one type each, so `clipboardMimeType` in settings
+picks it.
+
+The clipboard holds a path, not the bytes, so **deleting the GIF breaks the
+paste**. Recordings live in the app's user data folder and are swept after
+`keepForDays` instead. Only the intermediate mp4 goes straight away.
 
 ## Settings
 
@@ -76,6 +80,7 @@ straight away.
 | `dither` | `none` | use `bayer:bayer_scale=5` for gradients or video |
 | `drawMouse` | `true` | |
 | `keepForDays` | `7` | how long old recordings survive |
+| `clipboardMimeType` | `text/uri-list` | Linux only; try `image/gif` if a target app wants bytes |
 
 The size defaults were measured, not guessed. On a busy 800x600 three-second
 capture, `fps` 15 to 12, 256 to 128 colours, and dithering off together took the
@@ -94,32 +99,31 @@ file. `-probesize 32 -analyzeduration 0` makes encoding start on the first frame
 
 **Stop ffmpeg by writing `q` to its stdin**, never a signal. Windows has no POSIX
 signals, and killing the process skips the mp4 trailer and leaves a file nothing
-can open.
+can open. The same write works on macOS and Linux, so there is one code path.
 
-## Adding macOS or Linux
+## Platforms
 
-Everything platform-specific sits behind one interface, `PlatformAdapter` in
-`src/main/types.ts`:
+Everything platform-specific sits behind `PlatformAdapter` in
+`src/main/types.ts`, implemented once per platform in `src/main/platform/`. The
+adapters live in one typed map, so `npm run typecheck` checks all three from any
+machine. Each adapter answers two support questions separately: whether it can
+capture at all, asked before the overlay opens, and whether it can reach the
+clipboard, asked after encoding, when the file on disk is still a usable answer.
 
-```ts
-interface PlatformAdapter {
-  isSupported(): Support;                       // { ok: true } | { ok: false, reason }
-  captureArgs(options: CaptureOptions): string[];   // ffmpeg arguments
-  copyGifToClipboard(gifPath: string): Promise<unknown>;
-}
-```
+| | capture | clipboard | bar hidden from capture |
+|---|---|---|---|
+| Windows | gdigrab | `CF_HDROP` + 2 more | yes, build 19041+ |
+| macOS | avfoundation | `NSPasteboardItem`, 3 types | no, unmeasured |
+| Linux X11 | x11grab | one MIME type, via `xclip` | no |
+| Linux Wayland | refused | `wl-copy` | no |
 
-`src/main/platform/index.ts` holds the three adapters in one typed map, so the
-compiler checks each of them against that interface.
+Known rough edges, all commented where they live:
 
-`darwin.ts` and `linux.ts` already hold capture arguments written from the docs
-and notes on what their clipboard work needs. Neither has ever been run. Treat
-them as a starting point, not as working code.
-
-The known dead end on macOS: `osascript -e 'set the clipboard to (read (POSIX
-file "x.gif") as «class GIFf»)'` silently copies only the first frame. Drive
-`NSPasteboard` directly instead.
-
-On Linux, X11 maps onto the Windows path almost exactly. Wayland is the real
-work: there is no direct grab, so capture has to go through
-`xdg-desktop-portal` and PipeWire, with a consent prompt each time.
+- macOS device numbers are not display numbers, and the mapping between
+  Electron's display order and ffmpeg's is assumed rather than guaranteed.
+  `npm run doctor` prints it; check it before trusting a capture.
+- Wayland is refused because XWayland makes a broken capture look like a working
+  one. Getting it working means `xdg-desktop-portal` and PipeWire.
+- macOS and Linux X11 have never been run. `npm run doctor`, then
+  `npm run spike`, then a real recording on a second display is the order that
+  finds problems fastest.

@@ -2,15 +2,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 
+import { unpacked } from '../paths';
 import type { CaptureOptions, Support } from '../types';
 
 // Packaged builds must unpack this script: powershell.exe cannot read a file
 // from inside app.asar. See asarUnpack in the build config.
-const COPY_SCRIPT = path
-  .join(__dirname, '..', 'scripts', 'copy-gif.ps1')
-  .replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+const COPY_SCRIPT = unpacked(path.join(__dirname, '..', 'scripts', 'copy-gif.ps1'));
 
-export function isSupported(): Support {
+export function captureSupport(): Support {
+  return { ok: true };
+}
+
+export function clipboardSupport(): Support {
   return { ok: true };
 }
 

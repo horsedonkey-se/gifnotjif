@@ -132,6 +132,9 @@ export function showHud(region: Region, onStop: () => void): Hud {
   });
 
   win.setAlwaysOnTop(true, 'screen-saver');
+  // Otherwise a macOS full-screen space hides the bar, and the only way left to
+  // stop the recording is the hotkey.
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   // Windows removes a content-protected window from the desktop composite that
   // gdigrab reads, so the bar stays on screen and out of the recording.

@@ -6,22 +6,59 @@ export interface Region {
   height: number;
 }
 
+/**
+ * The display a capture is taken from.
+ *
+ * gdigrab and x11grab read the whole virtual desktop and crop at the source, so
+ * they need none of this. avfoundation captures one display at a time, as a
+ * numbered device, in that display's own coordinates, so it needs all of it.
+ */
+export interface CaptureDisplay {
+  /** Electron's Display.id. On macOS this is the CGDirectDisplayID. */
+  id: number;
+  /** Position in screen.getAllDisplays() order. */
+  index: number;
+  /** The display's own bounds, physical pixels, virtual-desktop origin. */
+  bounds: Region;
+}
+
 export interface CaptureOptions extends Region {
   fps: number;
   outPath: string;
   drawMouse?: boolean;
+  /** Absent when the caller has no screen module: assume the primary display. */
+  display?: CaptureDisplay;
+}
+
+export interface ClipboardOptions {
+  /**
+   * Linux only. X11 and Wayland both let one owner advertise a single type per
+   * clipboard tool, so which one it is has to be a choice the user can make.
+   */
+  mimeType?: string;
 }
 
 /**
- * Whether this platform can do the whole job. When it cannot, `reason` is the
- * sentence the user sees next to the saved file, so it always comes with one.
+ * Whether this platform can do a job. When it cannot, `reason` is the sentence
+ * the user reads, in a dialog or beside the saved file, so a no always comes
+ * with one and it is written to be read rather than logged.
  */
 export type Support = { ok: true } | { ok: false; reason: string };
 
 export interface PlatformAdapter {
-  isSupported(): Support;
+  /**
+   * Whether this machine can record at all. Checked before the overlay opens,
+   * because a platform that cannot capture must not be allowed to produce a
+   * file full of black frames and call it a recording.
+   */
+  captureSupport(): Support;
+  /**
+   * Whether a GIF can go on the clipboard here. Checked after encoding, and a
+   * no only costs the user the paste: the file is still on disk.
+   */
+  clipboardSupport(): Support;
   captureArgs(options: CaptureOptions): string[];
-  copyGifToClipboard(gifPath: string): Promise<unknown>;
+  copyGifToClipboard(gifPath: string, options?: ClipboardOptions): Promise<unknown>;
   /**
    * Whether a window marked content-protected is absent from what this
    * platform's capture backend records. False means the recording bar has to

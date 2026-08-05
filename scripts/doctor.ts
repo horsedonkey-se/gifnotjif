@@ -15,14 +15,16 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen, systemPreferences } from 'electron';
 
 import { DEFAULTS } from '../src/main/defaults';
 import { ffmpegPath } from '../src/main/ffmpeg';
 import { even } from '../src/main/overlay';
 import { getPlatform } from '../src/main/platform';
+import * as darwin from '../src/main/platform/darwin';
+import * as linux from '../src/main/platform/linux';
 import { startRecording } from '../src/main/recorder';
-import type { Region as Rect } from '../src/main/types';
+import type { CaptureDisplay, Region as Rect } from '../src/main/types';
 
 app.disableHardwareAcceleration();
 
@@ -32,10 +34,12 @@ app.on('window-all-closed', () => {});
 
 void app.whenReady().then(async () => {
   const platform = getPlatform();
-  const support = platform.isSupported();
+  const capture = platform.captureSupport();
+  const clipboard = platform.clipboardSupport();
 
   console.log(`platform  ${process.platform} (${os.release()})`);
-  console.log(`support   ${support.ok ? 'yes' : `no - ${support.reason}`}`);
+  console.log(`capture   ${capture.ok ? 'yes' : `no - ${capture.reason}`}`);
+  console.log(`clipboard ${clipboard.ok ? 'yes' : `no - ${clipboard.reason}`}`);
   console.log(
     `hide bar  ${
       platform.canHideFromCapture()
@@ -44,7 +48,9 @@ void app.whenReady().then(async () => {
     }`,
   );
   console.log(`ffmpeg    ${ffmpegPath}`);
-  console.log(`electron  ${process.versions.electron}\n`);
+  console.log(`electron  ${process.versions.electron}`);
+  reportPlatformDetail();
+  console.log();
 
   for (const d of screen.getAllDisplays()) {
     const b = d.bounds;
@@ -109,6 +115,25 @@ void app.whenReady().then(async () => {
 });
 
 /**
+ * The per-platform facts a port gets wrong.
+ *
+ * On macOS the avfoundation device numbers are guessed from list order, which
+ * is the one joint in this app that is checked by eye rather than by code, so
+ * print the mapping. On Linux the answer to "why did it refuse?" is always an
+ * environment variable, so print those.
+ */
+function reportPlatformDetail(): void {
+  if (process.platform === 'darwin') {
+    console.log(`screen access  ${systemPreferences.getMediaAccessStatus('screen')}`);
+    console.log(`avfoundation   ${darwin.describeDevices()}`);
+    console.log('  check that mapping against the display list below before trusting a capture');
+  }
+  if (process.platform === 'linux') {
+    console.log(`  ${linux.describeSession()}`);
+  }
+}
+
+/**
  * A window filling `rect`, painted one flat colour, on top of everything.
  *
  * Carries the same options as the recording bar in src/main/hud.ts, so what
@@ -171,7 +196,8 @@ async function averageColour(file: string): Promise<[number, number, number]> {
  * nothing of the user's desktop.
  */
 async function protectionTest(): Promise<void> {
-  const { workArea } = screen.getPrimaryDisplay();
+  const primary = screen.getPrimaryDisplay();
+  const { workArea } = primary;
   const rect: Rect = {
     x: Math.round(workArea.x + workArea.width / 2 - 180),
     y: Math.round(workArea.y + workArea.height / 2 - 60),
@@ -190,6 +216,21 @@ async function protectionTest(): Promise<void> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gifnotjif-protection-'));
   const videoPath = path.join(dir, 'capture.mp4');
 
+  // avfoundation records one display and crops afterwards, so it needs to be
+  // told which. Built here the same way overlay.ts builds it, so this test
+  // exercises the path the app uses rather than one of its own.
+  const bounds = screen.dipToScreenRect(null, primary.bounds);
+  const display: CaptureDisplay = {
+    id: primary.id,
+    index: Math.max(0, screen.getAllDisplays().findIndex((d) => d.id === primary.id)),
+    bounds: {
+      x: Math.round(bounds.x),
+      y: Math.round(bounds.y),
+      width: Math.round(bounds.width),
+      height: Math.round(bounds.height),
+    },
+  };
+
   console.log('\nrecording a protected window for 2s...');
   const rec = startRecording({
     x: region.x,
@@ -198,6 +239,7 @@ async function protectionTest(): Promise<void> {
     height: even(region.height),
     fps: DEFAULTS.fps,
     outPath: videoPath,
+    display,
   });
 
   let rgb: [number, number, number];
@@ -212,15 +254,17 @@ async function protectionTest(): Promise<void> {
   await fs.rm(dir, { recursive: true, force: true });
 
   const [r, g, b] = rgb;
+  const adapter = `platform/${process.platform}.ts`;
   const verdict =
     g > 150 && r < 100 && b < 100
-      ? 'excluded - the green window behind it came through. Content protection works here.'
+      ? 'excluded - the green window behind it came through. Content protection ' +
+        `works here, so canHideFromCapture() in ${adapter} may return true.`
       : r > 150 && b > 150 && g < 100
-        ? 'CAPTURED - gdigrab ignores content protection on this machine. ' +
-          'canHideFromCapture() in platform/win32.ts must return false.'
+        ? 'CAPTURED - the capture backend ignores content protection on this ' +
+          `machine. canHideFromCapture() in ${adapter} must return false.`
         : r < 60 && g < 60 && b < 60
-          ? 'BLACKED OUT - the WDA_MONITOR fallback. Raise the build gate in ' +
-            'platform/win32.ts; a black box in the GIF is no better than the bar.'
+          ? `BLACKED OUT - the WDA_MONITOR fallback. Raise the build gate in ${adapter}; ` +
+            'a black box in the GIF is no better than the bar.'
           : 'unclear. Something else was on top of the test windows; close it and rerun.';
 
   console.log(`captured rgb(${r},${g},${b})\nprotected window: ${verdict}`);
