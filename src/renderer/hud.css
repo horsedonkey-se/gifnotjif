@@ -96,11 +96,19 @@ body.busy #busy {
 }
 
 #clock {
-  /* Wide enough for 10:00, so the row never shuffles as the timer rolls over. */
-  min-width: 42px;
+  /* Wide enough for "0:30 left", the longest thing this ever says, so neither
+     the roll-over nor the switch to counting down shuffles the row. */
+  min-width: 74px;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+  transition: color 200ms ease;
+}
+
+/* The last seconds before the take ends itself. Amber rather than red: red is
+   already spoken for by the recording dot and by Stop. */
+body.warn #clock {
+  color: var(--amber);
 }
 
 /* Sits to the left of Stop, and the pair is pushed to the right together. */

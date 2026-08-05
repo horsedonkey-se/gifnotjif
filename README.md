@@ -94,6 +94,8 @@ paste**. Recordings live in the app's user data folder and are swept after
 |---|---|---|
 | `hotkey` | `CommandOrControl+Shift+G` | restart to apply |
 | `discardHotkey` | `Escape` | throws the take away; held only while recording, so it is taken from the app on camera for that time. `""` turns it off |
+| `maxDurationSecs` | `300` | a take stops itself here and is encoded as usual. `0` for no limit |
+| `minFreeDiskMb` | `500` | refuses to start, and stops a running take, below this much free disk. `0` turns it off |
 | `fps` | `12` | |
 | `maxWidth` | `800` | GIFs above ~10MB are rejected by GitHub and Discord |
 | `colors` | `128` | |

@@ -4,6 +4,8 @@
 export interface Settings {
   hotkey: string;
   discardHotkey: string;
+  maxDurationSecs: number;
+  minFreeDiskMb: number;
   fps: number;
   maxWidth: number;
   colors: number;
@@ -21,6 +23,19 @@ export const DEFAULTS: Settings = {
   // camera and the recording dies instead. Set it to "" to turn it off and use
   // the bar's discard button, which costs nothing to anyone.
   discardHotkey: 'Escape',
+  // Capture is near-lossless on purpose, so it is expensive: about 0.65MB/s for
+  // an 800x600 region, and several times that for a full screen. A recording
+  // nobody stops therefore writes gigabytes an hour, and the bar that would have
+  // shown it is sometimes hidden. So a take ends itself. It is stopped, not
+  // thrown away: the GIF is encoded and copied as if the button had been
+  // pressed. Set it to 0 to let a recording run until the disk stops it.
+  maxDurationSecs: 300,
+  // The floor the recordings folder's disk is kept above. Checked before a
+  // recording starts, and every few seconds while one runs, because how fast a
+  // capture grows depends on the region and on how much of it is moving. Set it
+  // to 0 to turn the check off, on the understanding that a full disk is a
+  // problem for the whole machine and not just for this app.
+  minFreeDiskMb: 500,
   fps: 12,
   // GIFs get expensive fast, and GitHub and Discord both reject images over
   // 10MB. On a busy 800x600 capture these three settings together took a

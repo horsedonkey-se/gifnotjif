@@ -56,6 +56,27 @@ function recordingsDir(): string {
 }
 
 /**
+ * Free space on the volume the recordings are written to, or null when the
+ * platform will not say. A null is not treated as a refusal: not knowing how
+ * much room there is is a worse reason to block a recording than any guess.
+ */
+async function freeDiskBytes(): Promise<number | null> {
+  try {
+    // userData rather than recordingsDir: same volume, and it always exists.
+    const { bavail, bsize } = await fs.statfs(app.getPath('userData'));
+    return bavail * bsize;
+  } catch {
+    return null;
+  }
+}
+
+const mb = (bytes: number): string => `${Math.round(bytes / 1024 / 1024)} MB`;
+
+/** Seconds as a clock, matching what the bar shows. */
+const clock = (secs: number): string =>
+  `${Math.floor(secs / 60)}:${String(Math.round(secs % 60)).padStart(2, '0')}`;
+
+/**
  * The clipboard holds a *path*, not the bytes, so a GIF cannot be deleted once
  * it has been copied without breaking the paste. Old ones are swept later
  * instead, at startup.
@@ -244,6 +265,51 @@ function releaseDiscardHotkey(): void {
 }
 
 /**
+ * How often the running recording is measured against its limits. Nothing here
+ * is urgent to the second: the duration limit is a round number the user chose,
+ * and the disk floor is deliberately well above the point where running out
+ * would hurt, so a couple of seconds of overshoot costs a few megabytes.
+ */
+const WATCHDOG_MS = 2000;
+
+let watchdog: NodeJS.Timeout | null = null;
+
+function startWatchdog(): void {
+  stopWatchdog();
+  if (config.maxDurationSecs <= 0 && config.minFreeDiskMb <= 0) return;
+  watchdog = setInterval(() => void checkLimits(), WATCHDOG_MS);
+}
+
+function stopWatchdog(): void {
+  if (watchdog) clearInterval(watchdog);
+  watchdog = null;
+}
+
+/**
+ * Ends a recording that has run too long or is filling the disk.
+ *
+ * Both stop it rather than discard it. The user still gets the take they have,
+ * and a GIF that arrives early is a smaller loss than one that never existed.
+ */
+async function checkLimits(): Promise<void> {
+  if (state !== 'recording' || !current) return;
+
+  const limitMs = config.maxDurationSecs * 1000;
+  if (limitMs > 0 && current.rec.elapsedMs >= limitMs) {
+    return stopRecording(`Stopped at the ${clock(config.maxDurationSecs)} limit.`);
+  }
+
+  if (config.minFreeDiskMb > 0) {
+    const free = await freeDiskBytes();
+    // statfs is slow enough that the recording can have ended underneath it.
+    if (state !== 'recording') return;
+    if (free !== null && free < config.minFreeDiskMb * 1024 * 1024) {
+      return stopRecording(`Stopped with ${mb(free)} of disk left.`);
+    }
+  }
+}
+
+/**
  * Explains why this machine cannot record, and on macOS offers the way to fix
  * it. Wayland and a missing DISPLAY have no button worth showing: the answer is
  * to log into a different session.
@@ -275,6 +341,26 @@ async function beginRecording(): Promise<void> {
     return setTrayState('idle');
   }
 
+  // Asked here for the same reason: a disk with no room on it will not get one
+  // by dragging a rectangle over it.
+  const floor = config.minFreeDiskMb * 1024 * 1024;
+  if (floor > 0) {
+    const free = await freeDiskBytes();
+    if (free !== null && free < floor) {
+      await dialog.showMessageBox({
+        type: 'warning',
+        title: 'Not enough disk space',
+        message: 'gifnotjif did not start a recording.',
+        detail:
+          `The disk has ${mb(free)} free, and recordings are kept above ` +
+          `${mb(floor)}. Open the recordings folder from the tray menu to ` +
+          'clear out old GIFs, or lower "minFreeDiskMb" in settings.',
+        buttons: ['Close'],
+      });
+      return setTrayState('idle');
+    }
+  }
+
   setTrayState('selecting');
 
   const region = await selectRegion();
@@ -293,11 +379,11 @@ async function beginRecording(): Promise<void> {
   // The bar goes up before ffmpeg does. It is only kept out of the recording
   // once the compositor knows to exclude it, and that has to be true of the
   // very first captured frame, not the one after it faded in.
-  const hud = showHud(
-    region,
-    () => void stopRecording(),
-    () => void discardRecording(),
-  );
+  const hud = showHud(region, {
+    onStop: () => void stopRecording(),
+    onDiscard: () => void discardRecording(),
+    limitSecs: config.maxDurationSecs,
+  });
   if (!hud.visible) {
     notify(
       'Recording',
@@ -305,7 +391,12 @@ async function beginRecording(): Promise<void> {
         (config.discardHotkey
           ? `, ${hotkeyLabel(config.discardHotkey)} to throw the take away. `
           : '. ') +
-        'The bar is hidden so it stays out of the GIF.',
+        'The bar is hidden so it stays out of the GIF' +
+        // With no bar there is nothing on screen counting, so the limit that
+        // will end this recording has to be said out loud.
+        (config.maxDurationSecs > 0
+          ? `, and this take stops itself at ${clock(config.maxDurationSecs)}.`
+          : '.'),
     );
   }
 
@@ -318,6 +409,7 @@ async function beginRecording(): Promise<void> {
     });
     current = { rec, hud, videoPath, gifPath };
     holdDiscardHotkey();
+    startWatchdog();
     setTrayState('recording');
   } catch (err) {
     hud.close();
@@ -339,6 +431,7 @@ async function discardRecording(): Promise<void> {
   const { rec, hud, videoPath } = current;
   setTrayState('processing');
   releaseDiscardHotkey();
+  stopWatchdog();
 
   try {
     // ffmpeg holds the file open on Windows until it is gone, so the delete has
@@ -354,11 +447,19 @@ async function discardRecording(): Promise<void> {
   }
 }
 
-async function stopRecording(): Promise<void> {
+/**
+ * `reason` is set when the recording ended itself rather than being stopped by
+ * hand, and it leads the notification so the early GIF is explained rather than
+ * just appearing.
+ */
+async function stopRecording(reason?: string): Promise<void> {
   if (state !== 'recording' || !current) return;
   const { rec, hud, videoPath, gifPath } = current;
   setTrayState('processing');
   releaseDiscardHotkey();
+  stopWatchdog();
+
+  const lead = reason ? `${reason} ` : '';
 
   try {
     await rec.stop();
@@ -379,12 +480,12 @@ async function stopRecording(): Promise<void> {
       // The click target is not visible on a toast, so it has to be said.
       notify(
         'Copied to clipboard',
-        `${await sizeOf(gifPath)} - ready to paste. Click to open.`,
+        `${lead}${await sizeOf(gifPath)} - ready to paste. Click to open.`,
         () => void shell.openPath(gifPath),
       );
     } else {
       // The recording is not wasted: the file on disk is the deliverable.
-      notify('Saved to disk', `${support.reason} ${gifPath} Click to open.`, () =>
+      notify('Saved to disk', `${lead}${support.reason} ${gifPath} Click to open.`, () =>
         void shell.openPath(gifPath),
       );
     }

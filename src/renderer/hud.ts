@@ -7,9 +7,32 @@ const statusLabel = document.getElementById('status')!;
 
 const startedAt = Date.now();
 
+/** Seconds this take stops itself at, or 0 when nothing bounds it. */
+const limitSecs = Number(new URLSearchParams(location.search).get('limit')) || 0;
+
+/**
+ * How long before the limit the bar starts saying so. Long enough to finish a
+ * sentence and press stop deliberately, short enough that it is not nagging for
+ * most of the recording.
+ */
+const WARN_SECS = 30;
+
+const asClock = (s: number): string =>
+  `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
 const tick = window.setInterval(() => {
   const s = Math.floor((Date.now() - startedAt) / 1000);
-  clockLabel.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const left = limitSecs - s;
+
+  // Counting up is what the user wants to read for all but the last few
+  // seconds. Past that, what matters is how long is left, so the clock says so
+  // rather than making them do the subtraction against a limit they set weeks
+  // ago and cannot see.
+  const warn = limitSecs > 0 && left <= WARN_SECS;
+  document.body.classList.toggle('warn', warn);
+  clockLabel.textContent = warn
+    ? `${asClock(Math.max(0, left))} left`
+    : asClock(s);
 }, 250);
 
 stopButton.addEventListener('click', () => {

@@ -100,7 +100,14 @@ const NO_HUD: Hud = {
  * `region` is in physical pixels; window positions are in DIP, hence the
  * conversion back.
  */
-export function showHud(region: Region, onStop: () => void, onDiscard: () => void): Hud {
+export interface HudOptions {
+  onStop: () => void;
+  onDiscard: () => void;
+  /** Where the bar starts warning that the take will end itself. 0 for no limit. */
+  limitSecs: number;
+}
+
+export function showHud(region: Region, { onStop, onDiscard, limitSecs }: HudOptions): Hud {
   const dip = screen.screenToDipRect(null, region);
   const hideable = getPlatform().canHideFromCapture();
   const spot = place(dip, hideable);
@@ -147,7 +154,11 @@ export function showHud(region: Region, onStop: () => void, onDiscard: () => voi
   win.showInactive();
   if (hideable) win.setContentProtection(true);
 
-  void win.loadFile(path.join(__dirname, '..', 'renderer', 'hud.html'));
+  // The limit rides in on the URL rather than over IPC, because a message sent
+  // from here could arrive before the page that listens for it exists.
+  void win.loadFile(path.join(__dirname, '..', 'renderer', 'hud.html'), {
+    query: { limit: String(limitSecs) },
+  });
 
   const onIpcStop = (event: IpcMainEvent): void => {
     if (BrowserWindow.fromWebContents(event.sender) === win) onStop();
