@@ -80,8 +80,20 @@ async function pruneOldRecordings(): Promise<void> {
   );
 }
 
-function notify(title: string, body: string): void {
-  if (Notification.isSupported()) new Notification({ title, body }).show();
+let toast: Notification | null = null;
+
+function notify(title: string, body: string, openOnClick?: string): void {
+  if (!Notification.isSupported()) return;
+
+  const next = new Notification({ title, body });
+  if (openOnClick) {
+    next.on('click', () => void shell.openPath(openOnClick));
+  }
+  next.on('close', () => {
+    if (toast === next) toast = null;
+  });
+  toast = next;
+  next.show();
 }
 
 /** An accelerator as the user would read it off their own keyboard. */
@@ -240,10 +252,15 @@ async function stopRecording(): Promise<void> {
     if (support.ok) {
       hud.setStatus('Copying...');
       await platform.copyGifToClipboard(gifPath, { mimeType: config.clipboardMimeType });
-      notify('Copied to clipboard', `${await sizeOf(gifPath)} - ready to paste`);
+      // The click target is not visible on a toast, so it has to be said.
+      notify(
+        'Copied to clipboard',
+        `${await sizeOf(gifPath)} - ready to paste. Click to open.`,
+        gifPath,
+      );
     } else {
       // The recording is not wasted: the file on disk is the deliverable.
-      notify('Saved to disk', `${support.reason} ${gifPath}`);
+      notify('Saved to disk', `${support.reason} ${gifPath} Click to open.`, gifPath);
     }
 
     // The GIF stays; only the intermediate video goes.
