@@ -8,7 +8,10 @@ gets them, and no installed copy updates itself, until you press Publish.
 1. Set the version in `package.json`. Use `0.1.0-beta.2` for a beta and `0.1.0`
    for a release; the hyphen is what marks it as a prerelease, here and on
    GitHub.
-2. Commit it, then tag it to match. `.github/workflows/release.yml` fails the
+2. Rewrite `release-notes.md` for this version. electron-builder reads that file
+   from the repository root and it becomes the release description. Whatever it
+   says when the tag is pushed is what people read.
+3. Commit both, then tag to match. `.github/workflows/release.yml` fails the
    build if the tag and `package.json` disagree, so a mismatch costs a build
    rather than a bad installer.
 
@@ -17,15 +20,15 @@ gets them, and no installed copy updates itself, until you press Publish.
    git push origin main --tags
    ```
 
-3. Wait for the four jobs: windows-x64, macos-arm64, macos-x64, linux-x64. Each
+4. Wait for the four jobs: windows-x64, macos-arm64, macos-x64, linux-x64. Each
    packages for one architecture, because `ffmpeg-static` downloads exactly one
    binary per install.
-4. Open the draft release. Check that all four installers are attached and that
+5. Open the draft release. Check that all four installers are attached and that
    `latest.yml` and `latest-linux.yml` are there too. Those two files are what
    the updater reads; a release without them updates nobody.
-5. Tick **Set as a pre-release** if the version has a hyphen. Leave it clear for
+6. Tick **Set as a pre-release** if the version has a hyphen. Leave it clear for
    a stable release.
-6. Press Publish.
+7. Press Publish.
 
 ## What reaches whom
 

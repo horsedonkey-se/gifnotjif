@@ -1,6 +1,6 @@
 {
   "name": "gifnotjif",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "private": true,
   "description": "Record a screen region and land an animated GIF on your clipboard.",
   "license": "GPL-3.0-or-later",
