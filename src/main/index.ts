@@ -12,6 +12,7 @@ import {
 } from 'electron';
 
 import * as settings from './settings';
+import * as autostart from './autostart';
 import { selectRegion } from './overlay';
 import { showHud } from './hud';
 import { startRecording } from './recorder';
@@ -194,6 +195,8 @@ function announceUpdate(status: UpdateState): void {
 }
 
 function buildTrayMenu(target: Tray): void {
+  const canAutostart = autostart.autostartSupport();
+
   target.setContextMenu(
     Menu.buildFromTemplate([
       {
@@ -215,6 +218,18 @@ function buildTrayMenu(target: Tray): void {
         label: 'Open recordings folder',
         click: () => void shell.openPath(recordingsDir()),
       },
+      // Reads the operating system's answer, not a copy of it, so the tick is
+      // still right after the user switched it off in Task Manager or System
+      // Settings. Disabled rather than hidden in a development run: the reason
+      // is worth seeing, and it is one hover away.
+      {
+        label: 'Start at login',
+        type: 'checkbox',
+        checked: autostart.isEnabled(),
+        enabled: canAutostart.ok,
+        ...(canAutostart.ok ? {} : { toolTip: canAutostart.reason }),
+        click: (item) => setAutostart(item.checked),
+      },
       {
         label: 'Edit settings...',
         click: async () => {
@@ -233,6 +248,28 @@ function buildTrayMenu(target: Tray): void {
       { label: 'Quit', role: 'quit' },
     ]),
   );
+}
+
+/**
+ * A refusal here has to be shown. The checkbox was ticked, so the user believes
+ * the app will be there after the next reboot, and finding out otherwise takes
+ * a reboot. The menu is rebuilt either way, which puts the tick back where the
+ * system says it belongs rather than where the click left it.
+ */
+function setAutostart(on: boolean): void {
+  const result = autostart.setEnabled(on);
+  if (!result.ok) {
+    void dialog.showMessageBox({
+      type: 'warning',
+      title: 'Start at login',
+      message: on
+        ? 'gifnotjif could not add itself to the login list.'
+        : 'gifnotjif could not remove itself from the login list.',
+      detail: result.reason,
+      buttons: ['Close'],
+    });
+  }
+  if (tray) buildTrayMenu(tray);
 }
 
 async function toggle(): Promise<void> {
@@ -516,6 +553,10 @@ void app.whenReady().then(async () => {
 
   // A tray app has no business in the dock or the taskbar.
   if (process.platform === 'darwin') app.dock?.hide();
+
+  // Cheap, and it is the only chance to notice that an existing login entry has
+  // gone stale before the login that would have used it.
+  autostart.refresh();
 
   tray = new Tray(
     nativeImage.createFromPath(path.join(app.getAppPath(), 'assets', 'tray.png')),
