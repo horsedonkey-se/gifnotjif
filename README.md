@@ -129,7 +129,7 @@ signals, and killing the process skips the mp4 trailer and leaves a file nothing
 can open. The same write works on macOS and Linux, so there is one code path.
 
 A `q` is only a request, though. ffmpeg reads it at the top of its transcode
-loop, so an input that never returns a frame never reads it at all — and ignores
+loop, so an input that never returns a frame never reads it at all, and ignores
 SIGINT and its own `-t` for the same reason. `src/main/recorder.ts` escalates to
 SIGINT, then SIGKILL, so a wedged capture costs the take rather than the app.
 

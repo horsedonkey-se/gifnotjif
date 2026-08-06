@@ -1,23 +1,32 @@
-Second beta. Windows, macOS (Intel and Apple silicon), and Linux.
+First stable release. Windows and macOS (Intel and Apple silicon) are tested and
+working. A Linux X11 build is published but has never been run, so treat it as
+experimental.
 
 ## New
 
-- Auto-update. The app checks for new releases and installs them. Betas are
-  offered only to copies that are themselves betas.
-- Window capture. Record a single window instead of a dragged region.
-- Light theme, and pill-shaped surfaces throughout.
-- Start at login, as a setting.
-- Discard a recording mid-take, by hotkey or button.
-- Clicking the "done" notification opens the GIF.
+- macOS works. Recording, GIF encoding and clipboard have been run end to end on
+  macOS 26 on Apple silicon.
 
-## Changed
+## Fixed
 
-- A hotkey another app already owns is rebound instead of silently failing.
-- Settings apply as you change them. No restart.
-- Limits on recording length and on how little free disk space is left, so a
-  long take cannot fill the drive.
+- macOS: selecting a region crashed on confirm. The DIP conversions used
+  Windows-only APIs that do not exist elsewhere.
+- macOS: recordings could not be stopped. ffmpeg could not work out its own frame
+  rate, assumed a million fps, and duplicated frames instead of finishing.
+- macOS: the window picker was off by the display scale factor on Retina screens.
+- macOS: builds are now ad-hoc signed, so the app asks for Screen Recording
+  permission under its own name rather than Electron's.
+- Stopping a recording can no longer hang the app. If ffmpeg will not quit it is
+  killed, and the failure says why.
 
 ## Known
 
-Nothing here is signed. Windows shows SmartScreen on first install. macOS
-cannot verify updates, so mac users get a link and install by hand.
+Nothing is Developer ID signed. Windows shows SmartScreen on first install. macOS
+needs right-click then Open on first launch, cannot install its own updates, and
+asks for Screen Recording permission again after each update.
+
+macOS has only been run on a single display.
+
+The Linux X11 build has never been run on real hardware. It compiles and the
+code path is there, but nothing about it has been confirmed working. If you try
+it, please open an issue with what happened. Wayland is refused on purpose.
