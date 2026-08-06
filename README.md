@@ -158,8 +158,11 @@ Known rough edges, all commented where they live:
   one. Getting it working means `xdg-desktop-portal` and PipeWire.
 - macOS has only been run on one display. The device mapping above and the DIP
   conversions in `src/main/dpi.ts` are untested with a second.
-- macOS builds are not code signed, so the bundle carries `Identifier=Electron`
-  and shares its screen-recording permission with other unsigned Electron apps.
+- macOS builds are ad-hoc signed, not Developer ID signed, so Gatekeeper still
+  stops the first launch and updates cannot install themselves. The ad-hoc
+  signature only settles who the app is, which is what Screen Recording
+  permission is keyed on. Its identity changes each build, so that permission
+  has to be granted again after an update.
 - Linux X11 has never been run. `npm run doctor`, then `npm run spike`, then a
   real recording on a second display is the order that finds problems fastest.
 

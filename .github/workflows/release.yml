@@ -72,4 +72,9 @@ jobs:
           # No Developer ID certificate, so skip the signing step rather than
           # letting it hunt the keychain and fail. See RELEASING.md for what
           # this costs the people installing it.
+          #
+          # macOS is still ad-hoc signed afterwards by build/afterSign.js, which
+          # runs from the electron-builder config and needs no certificate and
+          # no secrets. Without it the bundle would go out identifying itself as
+          # Electron, and ask for Screen Recording under that name.
           CSC_IDENTITY_AUTO_DISCOVERY: false

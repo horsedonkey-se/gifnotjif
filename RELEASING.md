@@ -49,7 +49,18 @@ looking for a `latest.yml` that is not in the release.
 ## The unsigned part
 
 `CSC_IDENTITY_AUTO_DISCOVERY: false` in the workflow skips signing, because
-there is no certificate to sign with. The costs:
+there is no certificate to sign with.
+
+macOS gets an ad-hoc signature anyway, from `build/afterSign.js`. That needs no
+certificate and no secrets, and it is not about Gatekeeper: unsigned, the bundle
+keeps the Electron download's own identity and asks for Screen Recording
+permission as `Electron` rather than as itself. Ad-hoc signing with the real
+bundle id gives it its own entry. A self-signed certificate would be better
+still, because its identity would survive a rebuild and permissions would
+survive an update, but codesign refuses an untrusted certificate and
+electron-builder never adds trust to one it imports.
+
+The costs that remain:
 
 - Windows shows SmartScreen on the first install. Later updates go in through
   electron-updater and skip it.

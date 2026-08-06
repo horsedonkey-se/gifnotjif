@@ -13,6 +13,11 @@ directories:
   output: release
   buildResources: build
 
+# Runs after electron-builder's own signing step, which does nothing here for
+# want of a Developer ID. See the file for why an unsigned bundle is a problem
+# beyond the Gatekeeper warning.
+afterSign: build/afterSign.js
+
 files:
   - dist/**
   - assets/**
