@@ -14,9 +14,22 @@ Windows works today, and so does macOS. Linux on X11 has an adapter that has not
 Grab an installer from [Releases](https://github.com/horsedonkey-se/gifnotjif/releases):
 `.exe` for Windows, `.dmg` for macOS, `.AppImage` for Linux.
 
-They are not code signed, so both Windows and macOS will complain the first time.
-Windows: More info, then Run anyway. macOS: right-click the app, Open, Open.
-Linux needs `chmod +x` on the AppImage and `xclip` installed for the clipboard
+They are not signed with a paid certificate, so both Windows and macOS will
+complain the first time.
+
+**Windows:** More info, then Run anyway.
+
+**macOS:** you get *"Apple could not verify gifnotjif is free of malware"*. Drag
+the app to Applications, then run this once:
+
+```
+xattr -dr com.apple.quarantine /Applications/gifnotjif.app
+```
+
+Or without the terminal: open it once, press Done, then **System Settings →
+Privacy & Security → Open Anyway**.
+
+**Linux:** `chmod +x` on the AppImage, and `xclip` installed for the clipboard
 step to work.
 
 ## Updating it
