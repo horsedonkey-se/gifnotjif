@@ -465,6 +465,9 @@ async function refuseCapture(reason: string): Promise<void> {
 }
 
 async function beginRecording(): Promise<void> {
+  // Before the first await, or a second press starts a second attempt.
+  setTrayState('selecting');
+
   // Asked before the overlay opens. A platform that cannot capture would
   // otherwise take the user through a selection to hand back black frames.
   const canCapture = getPlatform().captureSupport();
@@ -492,8 +495,6 @@ async function beginRecording(): Promise<void> {
       return setTrayState('idle');
     }
   }
-
-  setTrayState('selecting');
 
   const region = await selectRegion();
   if (!region) return setTrayState('idle');
@@ -663,10 +664,9 @@ void app.whenReady().then(async () => {
     trayIcon.setTemplateImage(true);
   }
   tray = new Tray(trayIcon);
-  // Left click starts and stops a recording; the menu stays on right click.
-  // On macOS a context menu swallows the left click, so the menu item is the
-  // only way in there.
-  tray.on('click', () => void toggle());
+  // Left click records; the menu stays on right click. Not on macOS, where a
+  // tray with a context menu opens it on left click and fires this too.
+  if (process.platform !== 'darwin') tray.on('click', () => void toggle());
 
   // Before the first tray state, because the tooltip and the menu both name
   // whichever hotkey this ends up binding.
