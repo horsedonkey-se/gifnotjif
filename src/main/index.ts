@@ -470,7 +470,11 @@ async function beginRecording(): Promise<void> {
 
   // Asked before the overlay opens. A platform that cannot capture would
   // otherwise take the user through a selection to hand back black frames.
-  const canCapture = getPlatform().captureSupport();
+  // The prompt comes first, so a first run answers it here rather than finding
+  // out mid-recording that the answer was no.
+  const platform = getPlatform();
+  await platform.requestCaptureAccess?.();
+  const canCapture = platform.captureSupport();
   if (!canCapture.ok) {
     await refuseCapture(canCapture.reason);
     return setTrayState('idle');
@@ -625,11 +629,20 @@ async function stopRecording(reason?: string): Promise<void> {
       );
     }
 
-    // The GIF stays; only the intermediate video goes.
-    await fs.rm(videoPath, { force: true });
   } catch (err) {
     fail('Recording failed', err);
   } finally {
+    // The GIF stays; only the intermediate video goes, and it goes whether or
+    // not the take made it that far. This is in `finally` rather than at the
+    // end of the `try` because the intermediate is lossless h264 at qp 0 --
+    // two seconds of it measured 65MB here -- so a take that failed late would
+    // otherwise leave the largest file the app ever writes sitting in the
+    // recordings folder with nothing to point at it.
+    await fs.rm(videoPath, { force: true }).catch(() => {
+      // Windows can still have the file open if ffmpeg had to be killed. The
+      // startup prune will get it; failing here would replace a real error
+      // message with a misleading one about deleting a temporary file.
+    });
     hud.close();
     current = null;
     setTrayState('idle');

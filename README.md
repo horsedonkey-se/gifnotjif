@@ -6,8 +6,7 @@ Press a hotkey, drag a box over part of your screen or click a window, press
 stop. The GIF lands on your clipboard, ready to paste into Slack, Discord, or a
 GitHub comment.
 
-Windows works today. macOS and Linux on X11 have adapters that have not yet been
-run on real hardware. Wayland is refused outright. See
+Windows works today, and so does macOS. Linux on X11 has an adapter that has not yet been run on real hardware. Wayland is refused outright. See
 [Platforms](#platforms).
 
 ## Installing it
@@ -120,9 +119,19 @@ filling it. A 300x200 capture at 10fps produces 2.4MB/s and stalls for about two
 seconds, and any recording stopped before probing finished produced an empty
 file. `-probesize 32 -analyzeduration 0` makes encoding start on the first frame.
 
+This is **gdigrab only**. avfoundation reports no frame rate of its own, so a
+short probe leaves ffmpeg unable to estimate one; it falls back to a million fps
+and duplicates frames forever without ever emitting the first. macOS pins the
+rate with an `fps` filter instead. See `captureArgs` in `platform/darwin.ts`.
+
 **Stop ffmpeg by writing `q` to its stdin**, never a signal. Windows has no POSIX
 signals, and killing the process skips the mp4 trailer and leaves a file nothing
 can open. The same write works on macOS and Linux, so there is one code path.
+
+A `q` is only a request, though. ffmpeg reads it at the top of its transcode
+loop, so an input that never returns a frame never reads it at all — and ignores
+SIGINT and its own `-t` for the same reason. `src/main/recorder.ts` escalates to
+SIGINT, then SIGKILL, so a wedged capture costs the take rather than the app.
 
 ## Platforms
 
@@ -142,20 +151,23 @@ clipboard, asked after encoding, when the file on disk is still a usable answer.
 
 Known rough edges, all commented where they live:
 
-- macOS device numbers are not display numbers, and the mapping between
-  Electron's display order and ffmpeg's is assumed rather than guaranteed.
-  `npm run doctor` prints it; check it before trusting a capture.
+- macOS device numbers are not display numbers, and the mapping is assumed
+  rather than guaranteed. `npm run doctor` prints it; check it before trusting
+  a capture.
 - Wayland is refused because XWayland makes a broken capture look like a working
   one. Getting it working means `xdg-desktop-portal` and PipeWire.
-- macOS and Linux X11 have never been run. `npm run doctor`, then
-  `npm run spike`, then a real recording on a second display is the order that
-  finds problems fastest.
+- macOS has only been run on one display. The device mapping above and the DIP
+  conversions in `src/main/dpi.ts` are untested with a second.
+- macOS builds are not code signed, so the bundle carries `Identifier=Electron`
+  and shares its screen-recording permission with other unsigned Electron apps.
+- Linux X11 has never been run. `npm run doctor`, then `npm run spike`, then a
+  real recording on a second display is the order that finds problems fastest.
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). The most useful thing anyone can do
-right now is run it on macOS or Linux X11 and report what happens, since neither
-adapter has ever touched real hardware.
+right now is run it on Linux X11 and report what happens, since that adapter has
+never touched real hardware.
 
 ## License
 

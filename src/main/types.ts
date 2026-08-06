@@ -71,6 +71,13 @@ export interface PlatformAdapter {
    */
   captureSupport(): Support;
   /**
+   * Raises the platform's capture-permission prompt, if it has one, and waits
+   * for the answer before `captureSupport` is asked. Only macOS implements it:
+   * Windows and X11 hand the desktop to anyone who asks, so there is nothing
+   * to prompt for.
+   */
+  requestCaptureAccess?(): Promise<void>;
+  /**
    * Whether a GIF can go on the clipboard here. Checked after encoding, and a
    * no only costs the user the paste: the file is still on disk.
    */

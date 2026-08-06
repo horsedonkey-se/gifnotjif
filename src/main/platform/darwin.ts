@@ -1,5 +1,13 @@
-// macOS. Written against the docs and the ffmpeg source, then left for the
-// verification steps in the README to confirm.
+// macOS. Run end to end on macOS 26.2, Apple Silicon, one display.
+//
+// Three things the paper version had wrong, all found on that first real run:
+// the DIP conversions were Windows-only APIs and simply absent here (see
+// dpi.ts); -probesize/-analyzeduration copied from win32.ts wedged avfoundation
+// past stopping (see captureArgs); and CGWindowListCopyWindowInfo measures in
+// points, not pixels (see listWindows).
+//
+// Still unverified: anything with a second display, which covers deviceFor and
+// the fallbacks in dpi.ts, and canHideFromCapture, which claims nothing.
 //
 // Capture is avfoundation, which differs from gdigrab in two ways that matter.
 // It records one display at a time, addressed by a device number that is not
@@ -47,11 +55,51 @@ function screenAccess(): string | null {
   }
 }
 
+/**
+ * Raises the Screen Recording prompt on the first run, and waits for an answer.
+ *
+ * The old plan was to let 'not-determined' through and let the recording itself
+ * raise the prompt. The risk is that the thing which captures is a spawned
+ * ffmpeg rather than the app, so there is no guarantee the attempt raises
+ * anything; whether TCC attributes it back to the app was never established
+ * here, and a maybe is a poor thing to hang a first run on.
+ *
+ * What is measured is the cost of guessing wrong. With the permission refused,
+ * ffmpeg opens the device, receives no frames at all, and blocks inside
+ * avfoundation waiting for a first one -- deaf to 'q', to SIGINT and to its own
+ * `-t` limit, so even a self-limiting capture never returns. recorder.ts can
+ * kill that now, but the take is gone with it, so it is much better not to
+ * start one.
+ *
+ * desktopCapturer.getSources is the app itself asking, which is the call TCC
+ * does have a prompt for. The sources are thrown away; raising the prompt and
+ * settling the status is the whole point, and the thumbnail is shrunk to
+ * nothing so no screen is actually read to build one.
+ */
+export async function requestCaptureAccess(): Promise<void> {
+  if (screenAccess() !== 'not-determined') return;
+  try {
+    const electron = require('electron') as typeof import('electron');
+    await electron.desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1, height: 1 },
+    });
+  } catch {
+    // No Electron, or the call failed. captureSupport reads the status next
+    // and a still-undetermined one is handled there.
+  }
+}
+
 export function captureSupport(): Support {
   const status = screenAccess();
-  // 'not-determined' is the first run. Recording is what raises the system
-  // prompt, so refusing here would mean the user never got asked.
   if (status === 'denied' || status === 'restricted') {
+    return { ok: false, reason: NO_PERMISSION };
+  }
+  // Still undetermined after requestCaptureAccess means the prompt never got
+  // an answer, and going ahead would hang ffmpeg on a capture it will never be
+  // allowed to make. Refusing says the same sentence a denial does, which is
+  // the one that leads to the switch that fixes it.
+  if (status === 'not-determined') {
     return { ok: false, reason: NO_PERMISSION };
   }
   return { ok: true };
@@ -238,18 +286,47 @@ export function captureArgs({
   const originY = display ? display.bounds.y : 0;
 
   return [
-    // See the comment in win32.ts: without this, ffmpeg probes for megabytes
-    // before it starts encoding and short recordings come back empty.
-    '-probesize', '32',
-    '-analyzeduration', '0',
+    // No -probesize/-analyzeduration here, unlike win32.ts, and the difference
+    // is load-bearing rather than an oversight.
+    //
+    // gdigrab announces its frame rate, so cutting the probe short costs
+    // nothing and saves a slow start. avfoundation announces nothing, and one
+    // uyvy422 frame of a 2940x1912 screen is about 11MB, so a 32-byte probe
+    // cannot hold even a fraction of one. ffmpeg then gives up on estimating
+    // ("not enough frames to estimate rate; consider increasing probesize")
+    // and falls back to 1000k tbr -- a million frames a second.
+    //
+    // That number is not cosmetic. The output stream inherits it, and ffmpeg
+    // sets about duplicating frames to fill a million-fps timeline, so it never
+    // emits frame 1 and never gets back to the loop that reads 'q' or handles
+    // SIGINT. The recording then cannot be stopped at all.
     '-f', 'avfoundation',
     '-capture_cursor', drawMouse ? '1' : '0',
     // The click halo is an artefact of the recording, not of the desktop.
     '-capture_mouse_clicks', '0',
+    // Asked for, and not granted: avfoundation logs "Configuration of video
+    // device failed, falling back to default" for screen devices and runs at
+    // the display's own rate. The output rate is pinned by the fps filter
+    // below, which is what actually decides the recording.
     '-framerate', String(fps),
     // ":none" is the audio device. There is no sound in a GIF.
     '-i', `${deviceFor(display ? display.index : 0)}:none`,
-    '-vf', `crop=${width}:${height}:${x - originX}:${y - originY}`,
+    // setpts, then fps, and both are required.
+    //
+    // avfoundation timestamps frames against the mach clock, so the first one
+    // arrives at however long this Mac has been awake -- 188459s in the run
+    // this was diagnosed from. Subtracting STARTPTS puts the take at zero,
+    // where mp4 expects it; without it ffmpeg reports a time of -577014:32:22
+    // and writes a file no player will seek.
+    //
+    // fps then pins the output rate rather than leaving it to whatever the
+    // input claimed, which is the guard against the million-fps fallback ever
+    // reaching the encoder again.
+    '-vf',
+    `crop=${width}:${height}:${x - originX}:${y - originY},setpts=PTS-STARTPTS,fps=${fps}`,
+    // The rate above is a real one, so the muxer gets constant frames and the
+    // duplicate-until-death path is closed off explicitly as well as by value.
+    '-fps_mode', 'cfr',
     // Lossless 4:4:4 intermediate, as on Windows: chroma subsampling would
     // smear the edges of coloured text before the GIF palette ever saw them.
     '-c:v', 'libx264',
