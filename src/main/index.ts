@@ -655,9 +655,14 @@ void app.whenReady().then(async () => {
   // gone stale before the login that would have used it.
   autostart.refresh();
 
-  tray = new Tray(
-    nativeImage.createFromPath(path.join(app.getAppPath(), 'assets', 'tray.png')),
+  let trayIcon = nativeImage.createFromPath(
+    path.join(app.getAppPath(), 'assets', 'tray.png'),
   );
+  if (process.platform === 'darwin') {
+    trayIcon = trayIcon.resize({ width: 18, height: 18 });
+    trayIcon.setTemplateImage(true);
+  }
+  tray = new Tray(trayIcon);
   // Left click starts and stops a recording; the menu stays on right click.
   // On macOS a context menu swallows the left click, so the menu item is the
   // only way in there.
