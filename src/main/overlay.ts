@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { BrowserWindow, ipcMain, screen, type Display, type IpcMainEvent } from 'electron';
 
+import { dipToPhysicalRect, physicalToDipRect } from './dpi';
 import { getPlatform } from './platform';
 import type { CaptureDisplay, PickableWindow, Region, WindowInfo } from './types';
 
@@ -24,15 +25,14 @@ const OVERLAY_TITLE = 'Select a region';
  * reason: doing it by hand with scaleFactor breaks the moment two displays are
  * scaled differently.
  *
- * The null first argument is load-bearing. Passing the overlay window instead
- * scales every rectangle by *that* window's display, so a window living on a
- * differently scaled display comes back the wrong size and in the wrong place,
- * and can then be picked through an overlay it is not even on. Null scales each
- * rectangle by the display nearest to it, which is the one it is on.
+ * Each rectangle is scaled by the display it is on, never by the overlay's.
+ * Scaling by the overlay's would send a window living on a differently scaled
+ * display back the wrong size and in the wrong place, where it could then be
+ * picked through an overlay it is not even on.
  */
 export function forDisplay(windows: WindowInfo[], display: Display): PickableWindow[] {
   return windows.map((w) => {
-    const dip = screen.screenToDipRect(null, w.bounds);
+    const dip = physicalToDipRect(w.bounds);
     return {
       title: w.title,
       x: Math.round(dip.x - display.bounds.x),
@@ -96,13 +96,13 @@ export function selectRegion(): Promise<Selection | null> {
         width: rect.width,
         height: rect.height,
       };
-      const physical = screen.dipToScreenRect(win, dip);
+      const physical = dipToPhysicalRect(win, dip);
 
       // Carry the display through with the region. gdigrab and x11grab read the
       // whole desktop and never look at it; avfoundation records one display at
       // a time and cannot work without it. The same conversion is used for its
       // bounds, so both rectangles are in the same units.
-      const bounds = screen.dipToScreenRect(win, display.bounds);
+      const bounds = dipToPhysicalRect(win, display.bounds);
 
       finish({
         x: Math.round(physical.x),

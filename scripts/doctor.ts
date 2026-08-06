@@ -18,6 +18,7 @@ import path from 'node:path';
 import { app, BrowserWindow, screen, systemPreferences } from 'electron';
 
 import { DEFAULTS } from '../src/main/defaults';
+import { dipToPhysicalRect } from '../src/main/dpi';
 import { ffmpegPath } from '../src/main/ffmpeg';
 import { even } from '../src/main/overlay';
 import { getPlatform } from '../src/main/platform';
@@ -64,7 +65,7 @@ void app.whenReady().then(async () => {
 
     // A 100x100 DIP box, 50 DIP in from the display's top-left corner.
     const dip = { x: b.x + 50, y: b.y + 50, width: 100, height: 100 };
-    const phys = screen.dipToScreenRect(null, dip);
+    const phys = dipToPhysicalRect(null, dip);
     console.log(
       `  dip  (${dip.x},${dip.y}) ${dip.width}x${dip.height}\n` +
         `  ->   (${phys.x},${phys.y}) ${phys.width}x${phys.height} physical`,
@@ -86,7 +87,7 @@ void app.whenReady().then(async () => {
 
   const total = screen.getAllDisplays().reduce(
     (acc, d) => {
-      const r = screen.dipToScreenRect(null, d.bounds);
+      const r = dipToPhysicalRect(null, d.bounds);
       return {
         minX: Math.min(acc.minX, r.x),
         minY: Math.min(acc.minY, r.y),
@@ -239,14 +240,14 @@ async function protectionTest(): Promise<void> {
   // it from the first frame rather than halfway through.
   await new Promise((r) => setTimeout(r, 600));
 
-  const region = screen.dipToScreenRect(null, rect);
+  const region = dipToPhysicalRect(null, rect);
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'gifnotjif-protection-'));
   const videoPath = path.join(dir, 'capture.mp4');
 
   // avfoundation records one display and crops afterwards, so it needs to be
   // told which. Built here the same way overlay.ts builds it, so this test
   // exercises the path the app uses rather than one of its own.
-  const bounds = screen.dipToScreenRect(null, primary.bounds);
+  const bounds = dipToPhysicalRect(null, primary.bounds);
   const display: CaptureDisplay = {
     id: primary.id,
     index: Math.max(0, screen.getAllDisplays().findIndex((d) => d.id === primary.id)),

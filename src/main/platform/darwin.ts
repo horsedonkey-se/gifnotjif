@@ -14,6 +14,7 @@
 import path from 'node:path';
 import { execFile, execFileSync } from 'node:child_process';
 
+import { dipToPhysicalRect } from '../dpi';
 import { ffmpegPath } from '../ffmpeg';
 import { unpacked } from '../paths';
 import type { CaptureOptions, Support, WindowInfo } from '../types';
@@ -85,7 +86,16 @@ interface RawWindow {
   height: number;
 }
 
-/** The on-screen windows, frontmost first. Never rejects; see win32.ts. */
+/**
+ * The on-screen windows, frontmost first. Never rejects; see win32.ts.
+ *
+ * CGWindowListCopyWindowInfo measures in points, and `WindowInfo.bounds` is in
+ * physical pixels, so every rectangle is converted on the way out. Windows
+ * needs no such step because its window rectangles are already physical. Skip
+ * it and every window comes back at half size and half position on a Retina
+ * display, which is exactly the offset that makes a picker look plausible and
+ * land on the wrong window.
+ */
 export function listWindows(): Promise<WindowInfo[]> {
   return new Promise((resolve) => {
     execFile(
@@ -97,11 +107,24 @@ export function listWindows(): Promise<WindowInfo[]> {
         try {
           const raw = JSON.parse(stdout) as RawWindow[];
           resolve(
-            raw.map((w) => ({
-              title: w.title,
-              pid: w.pid,
-              bounds: { x: w.x, y: w.y, width: w.width, height: w.height },
-            })),
+            raw.map((w) => {
+              const b = dipToPhysicalRect(null, {
+                x: w.x,
+                y: w.y,
+                width: w.width,
+                height: w.height,
+              });
+              return {
+                title: w.title,
+                pid: w.pid,
+                bounds: {
+                  x: Math.round(b.x),
+                  y: Math.round(b.y),
+                  width: Math.round(b.width),
+                  height: Math.round(b.height),
+                },
+              };
+            }),
           );
         } catch {
           resolve([]);

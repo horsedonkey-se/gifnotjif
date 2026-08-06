@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { BrowserWindow, ipcMain, screen, type IpcMainEvent } from 'electron';
 
+import { physicalToDipRect } from './dpi';
 import { getPlatform } from './platform';
 import type { Hud, Region } from './types';
 
@@ -114,7 +115,7 @@ export interface HudOptions {
 }
 
 export function showHud(region: Region, { onStop, onDiscard, limitSecs }: HudOptions): Hud {
-  const dip = screen.screenToDipRect(null, region);
+  const dip = physicalToDipRect(region);
   const hideable = getPlatform().canHideFromCapture();
   const spot = place(dip, hideable);
   if (!spot) return NO_HUD;
